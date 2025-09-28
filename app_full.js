@@ -24,26 +24,44 @@ const fileToRoute = {
 };
 
 /* -------------------------------
-   공통 헤더(간단 버전)
+   공통 헤더 렌더/마운트
+   - 원래 header.html 스타일과 호환되는 구조
+   - 로그인/로그아웃/장바구니 동기화
 -------------------------------- */
-function Header() {
+function mountHeader() {
   const cartCount = state.cart.reduce((s, i) => s + (i.qty || 0), 0);
-  return `
-    <header class="header">
-      <div id="app-header"></div>
-      <div class="inner header-top">
-        <a class="logo" data-link="home" aria-label="ENS 홈">ENS</a>
-        <div class="header-actions">
-          ${state.session
-            ? `<span class="hello">안녕하세요, <b>${state.session.username}</b>님</span>
-               <button class="btn ghost" data-link="cart">장바구니 (${cartCount})</button>
-               <button class="btn outline" data-action="logout">로그아웃</button>`
-            : `<button class="btn" data-link="login">로그인</button>
-               <button class="btn ghost" data-link="signup">회원가입</button>`
-          }
-        </div>
+  const html = `
+    <div class="inner header-top">
+      <a class="logo" data-link="home" aria-label="ENS 홈">ENS</a>
+      <div class="header-actions">
+        ${state.session
+          ? `<span class="hello">안녕하세요, <b>${state.session.username}</b>님</span>
+             <button class="btn ghost" data-link="cart">장바구니 (${cartCount})</button>
+             <button class="btn outline" data-action="logout">로그아웃</button>`
+          : `<button class="btn" data-link="login">로그인</button>
+             <button class="btn ghost" data-link="signup">회원가입</button>`
+        }
       </div>
-    </header>`;
+    </div>
+    <nav class="nav inner">
+      <button class="nav-btn" data-link="store">스토어</button>
+      <button class="nav-btn" data-link="news">뉴스</button>
+      <button class="nav-btn" data-link="players">선수</button>
+      <button class="nav-btn" data-link="cart">장바구니</button>
+    </nav>
+  `;
+  // 1) views-full가 넣어둔 헤더 마운트 포인트가 있으면 거기에 주입
+  const mount = document.getElementById('app-header');
+  if (mount) {
+    mount.classList.add('header'); // 보장
+    mount.innerHTML = html;
+  } else {
+    // 2) 없으면 헤더를 최상단에 생성
+    const header = document.querySelector('header.header') || document.createElement('header');
+    header.className = 'header';
+    header.innerHTML = html;
+    document.body.prepend(header);
+  }
 }
 
 /* -------------------------------
@@ -66,12 +84,14 @@ function render() {
     case 'signup':     body = View_signup?.() || View_index(); break;
     default:           body = View_index(); break;
   }
-  $app().innerHTML = Header() + body;
 
-  // ▼▼ 수정 추가: 남은 *.html 링크를 전부 #/route로 교체
-  patchLegacyLinks();
-  // 기존 마크업(class/속성) 그대로여도 SPA 동작하도록 버튼/링크 표준화
-  enhanceActions();
+  // 메인 삽입 (헤더는 mountHeader가 주입)
+  $app().innerHTML = body;
+
+  patchLegacyLinks();   // *.html → #/route 변환
+  enhanceActions();     // 원본 버튼/링크 → SPA 속성 매핑
+  mountHeader();        // 헤더 주입/동기화
+  initRowScrolls();     // 가로 스크롤 초기화
 }
 onRouteChange(render);
 
@@ -79,7 +99,6 @@ onRouteChange(render);
    *.html → #/route 자동 변환
 -------------------------------- */
 function patchLegacyLinks() {
-  // <a href="*.html"> → #/route
   document.querySelectorAll('a[href$=".html"]').forEach(a => {
     const href = a.getAttribute('href') || '';
     const file = href.split('/').pop().toLowerCase();
@@ -89,8 +108,6 @@ function patchLegacyLinks() {
       a.setAttribute('data-link', route);
     }
   });
-
-  // <form action="*.html"> → SPA에서 기본 제출 차단(라우트 이동만)
   document.querySelectorAll('form[action$=".html"]').forEach(f => {
     const act = f.getAttribute('action') || '';
     const file = act.split('/').pop().toLowerCase();
@@ -100,8 +117,6 @@ function patchLegacyLinks() {
       f.removeAttribute('action');
     }
   });
-
-  // data-nav="store" 같은 커스텀 네비도 data-link로 매핑
   document.querySelectorAll('[data-nav]').forEach(el => {
     const r = (el.getAttribute('data-nav') || '').trim();
     if (r) el.setAttribute('data-link', r);
@@ -112,7 +127,6 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 -------------------------------- */
 function enhanceActions() {
-  // nav 유사 요소들에 data-link 부여
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el => el.setAttribute('data-link', 'store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el => el.setAttribute('data-link', 'cart'));
   document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el => el.setAttribute('data-link', 'login'));
@@ -137,7 +151,6 @@ function enhanceActions() {
     }
   });
 
-  // 버튼 텍스트로도 보완 매칭
   Array.from(document.querySelectorAll('button')).forEach(btn => {
     const t = (btn.textContent || '').trim();
     if (!btn.hasAttribute('data-action') && /장바구니/.test(t)) {
@@ -154,44 +167,29 @@ function enhanceActions() {
 }
 
 /* -------------------------------
-   전역 이벤트 위임
+   전역 클릭/폼 위임
 -------------------------------- */
 document.addEventListener('click', (e) => {
-  // 1) *.html로 가는 레거시 <a> 클릭 차단 후 SPA 라우팅
   const legacyA = e.target.closest('a[href$=".html"]');
   if (legacyA) {
     const href = legacyA.getAttribute('href') || '';
     const file = href.split('/').pop().toLowerCase();
     const route = fileToRoute[file];
-    if (route) {
-      e.preventDefault();
-      navigate(route);
-      return;
-    }
+    if (route) { e.preventDefault(); navigate(route); return; }
   }
 
-  // 2) data-link 기반 라우팅
   const link = e.target.closest('[data-link]');
-  if (link) {
-    e.preventDefault();
-    navigate(link.getAttribute('data-link'));
-    return;
-  }
+  if (link) { e.preventDefault(); navigate(link.getAttribute('data-link')); return; }
 
-  // 3) data-action 처리
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.getAttribute('data-action');
   const id = el.getAttribute('data-id');
 
-  if (action === 'logout') {
-    state.session = null; saveState(); render(); return;
-  }
+  if (action === 'logout') { state.session = null; saveState(); render(); return; }
 
   if (action === 'add-to-cart' || action === 'buy-now') {
     if (!state.session) { alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
-
-    // DOM에서 상품 정보 추출 (id/제목/가격/이미지)
     const container = el.closest('[data-id], [data-title], [data-price], article, .card, .product');
     let pid   = id || container?.getAttribute('data-id') || '';
     let title = el.getAttribute('data-title') || container?.getAttribute('data-title') ||
@@ -208,40 +206,21 @@ document.addEventListener('click', (e) => {
     if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g, '-');
 
     const ex = state.cart.find(x => x.id === pid);
-    if (ex) ex.qty++;
-    else state.cart.push({ id: pid, title, price, img, qty: 1 });
+    if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
 
     saveState(); render();
     if (action === 'buy-now') navigate('cart');
     return;
   }
 
-  if (action === 'qty-inc') {
-    const it = state.cart.find(x => x.id === id);
-    if (it) it.qty++;
-    saveState(); render(); return;
-  }
-  if (action === 'qty-dec') {
-    const it = state.cart.find(x => x.id === id);
-    if (it && it.qty > 1) it.qty--;
-    saveState(); render(); return;
-  }
-  if (action === 'remove') {
-    state.cart = state.cart.filter(x => x.id !== id);
-    saveState(); render(); return;
-  }
-  if (action === 'checkout') {
-    alert('결제가 완료되었습니다. (데모)');
-    state.cart = []; saveState(); render(); return;
-  }
+  if (action === 'qty-inc') { const it = state.cart.find(x => x.id === id); if (it) it.qty++; saveState(); render(); return; }
+  if (action === 'qty-dec') { const it = state.cart.find(x => x.id === id); if (it && it.qty > 1) it.qty--; saveState(); render(); return; }
+  if (action === 'remove')  { state.cart = state.cart.filter(x => x.id !== id); saveState(); render(); return; }
+  if (action === 'checkout'){ alert('결제가 완료되었습니다. (데모)'); state.cart = []; saveState(); render(); return; }
 });
 
-/* -------------------------------
-   폼 위임 (로그인/회원가입)
--------------------------------- */
 document.addEventListener('submit', async (e) => {
   const form = e.target;
-
   if (form.id === 'loginForm') {
     e.preventDefault();
     const fd = new FormData(form);
@@ -250,10 +229,8 @@ document.addEventListener('submit', async (e) => {
     const user = state.users.find(u => u.username === username);
     const passOk = user && (await sha256(password)) === user.passHash;
     if (!passOk) { alert('아이디 또는 비밀번호가 올바르지 않습니다.'); return; }
-    state.session = { username };
-    saveState(); navigate('home'); render();
+    state.session = { username }; saveState(); navigate('home'); render();
   }
-
   if (form.id === 'signupForm') {
     e.preventDefault();
     const fd = new FormData(form);
@@ -266,3 +243,73 @@ document.addEventListener('submit', async (e) => {
     navigate('login'); render();
   }
 });
+
+/* -------------------------------
+   가로 스크롤 초기화 (row-scroll.js 포팅)
+   - .row-shell 안에 .row-scroll, 좌/우 버튼(.row-nav2.prev/.next) 가정
+-------------------------------- */
+function initRowScrolls() {
+  document.querySelectorAll('.row-shell').forEach(shell => {
+    const row = shell.querySelector('.row-scroll');
+    if (!row) return;
+    const prevBtn = shell.querySelector('.row-nav2.prev');
+    const nextBtn = shell.querySelector('.row-nav2.next');
+
+    const isAtStart = () => {
+      const first = row.firstElementChild;
+      if (!first) return true;
+      const rr = row.getBoundingClientRect();
+      const fr = first.getBoundingClientRect();
+      return fr.left - rr.left >= -4;
+    };
+    const isAtEnd = () => {
+      const last = row.lastElementChild;
+      if (!last) return true;
+      const rr = row.getBoundingClientRect();
+      const lr = last.getBoundingClientRect();
+      return lr.right - rr.right <= 4;
+    };
+    const updateBtns = () => {
+      if (prevBtn) prevBtn.disabled = isAtStart();
+      if (nextBtn) nextBtn.disabled = isAtEnd();
+    };
+    const scrollBy = (dx) => {
+      row.scrollBy({ left: dx, behavior: 'smooth' });
+      setTimeout(updateBtns, 250);
+    };
+
+    // 버튼 클릭
+    prevBtn?.addEventListener('click', () => scrollBy(-Math.round(row.clientWidth * 0.9)));
+    nextBtn?.addEventListener('click', () => scrollBy(+Math.round(row.clientWidth * 0.9)));
+
+    // 휠 가로 스크롤
+    row.addEventListener('wheel', (e) => {
+      if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return; // 수직 우선이면 패스
+      e.preventDefault();
+      row.scrollLeft += e.deltaX;
+      updateBtns();
+    }, { passive: false });
+
+    // 드래그 스크롤
+    let dragging = false, startX = 0, startLeft = 0;
+    row.addEventListener('mousedown', (e) => {
+      dragging = true; startX = e.clientX; startLeft = row.scrollLeft;
+      row.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      row.scrollLeft = startLeft - dx;
+      updateBtns();
+    });
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false; row.classList.remove('dragging');
+    });
+
+    // 초기 상태
+    updateBtns();
+    // 리사이즈 시 재계산
+    window.addEventListener('resize', updateBtns, { passive: true });
+  });
+}
