@@ -1,4 +1,4 @@
-// app_full.js — SPA 엔트리 (헤더/검색/네비/카드클릭/가로스크롤/장바구니가드 + 검색 인덱스 호환)
+// app_full.js — SPA 엔트리 (헤더/검색/네비/카드클릭/가로스크롤/장바구니가드 + 검색 인덱스 강화)
 
 import { state, saveState, $app, sha256 } from './js/state.js';
 import { navigate, onRouteChange } from './js/router.js';
@@ -7,7 +7,7 @@ import {
   View_news, View_matches, View_store, View_search,
   View_cart, View_login, View_signup
 } from './js/views-full.js';
-import { DATA } from './js/data.js'; // 없으면 빈 객체로 export 해 두세요.
+import { DATA } from './js/data.js'; // 없으면 빈 객체 export 권장
 
 /* ========================================
    레거시 파일명 → 라우트 매핑
@@ -44,12 +44,12 @@ function parseHashQuery() {
    홈 카드 → 카테고리 자동 매핑 유틸
 ======================================== */
 const KWD_TO_ROUTE = [
-  { kws: ['e스포츠','esports','e-sports','e sport'], route: 'esports' },
-  { kws: ['농구','basketball','nba'],               route: 'basketball' },
-  { kws: ['축구','football','soccer','epl'],        route: 'football' },
-  { kws: ['뉴스','news'],                           route: 'news' },
-  { kws: ['경기','일정','matches','schedule'],      route: 'matches' },
-  { kws: ['스토어','store','쇼핑','shop'],          route: 'store' },
+  { kws: ['e스포츠','esports','e-sports','e sport','faker','t1'], route: 'esports' },
+  { kws: ['농구','basketball','nba','lebron','curry'],           route: 'basketball' },
+  { kws: ['축구','football','soccer','epl','손흥민','son'],       route: 'football' },
+  { kws: ['뉴스','news'],                                        route: 'news' },
+  { kws: ['경기','일정','matches','schedule','fixtures'],        route: 'matches' },
+  { kws: ['스토어','store','쇼핑','shop'],                       route: 'store' },
 ];
 const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').trim().toLowerCase();
 function guessRouteFromText(s=''){ const t=s.toLowerCase(); for(const {kws,route} of KWD_TO_ROUTE){ if(kws.some(k=>t.includes(k))) return route; } return null; }
@@ -66,20 +66,37 @@ function mapHomeCardToRoute(card){
 }
 
 /* ========================================
-   검색 인덱스 (DATA 없거나 스키마 달라도 동작)
+   검색 인덱스 (DATA/레거시/마크업 모두 흡수)
 ======================================== */
 let SEARCH_INDEX = null;
 
 function normalize(s='') { return s.toString().toLowerCase().normalize('NFKC').trim(); }
 const get = (o, keys, fb='') => { if (!o) return fb; for (const k of keys) if (o[k]!=null) return o[k]; return fb; };
 
+// 1) JS 데이터에서 인덱스 구성(레거시 전역 포함)
 function buildIndexFromDATA() {
-  try { if (!DATA) return []; } catch { return []; }
   const out = [];
+  let PR = [], P = [], N = [];
+
+  // 표준 DATA
+  try {
+    if (typeof DATA !== 'undefined') {
+      PR = DATA.products || DATA.items || DATA.catalog || PR;
+      P  = DATA.players  || DATA.athletes || P;
+      N  = DATA.news     || DATA.articles || DATA.posts || N;
+    }
+  } catch {}
+
+  // 레거시 전역 (search-data.js 등)
+  try {
+    const g = (window.SEARCH_DATA || window.searchData || window);
+    if (!P.length  && g && (g.players  || g.athletes))   P  = g.players  || g.athletes;
+    if (!N.length  && g && (g.news     || g.articles || g.posts)) N = g.news || g.articles || g.posts;
+    if (!PR.length && g && (g.products || g.items    || g.catalog)) PR = g.products || g.items || g.catalog;
+  } catch {}
 
   // 상품
-  const products = DATA.products || DATA.items || DATA.catalog || [];
-  products.forEach(p => out.push({
+  PR.forEach(p => out.push({
     type:'product',
     id:   get(p,['id','sku','code'],''),
     title:get(p,['title','name','label','headline'],''),
@@ -90,20 +107,19 @@ function buildIndexFromDATA() {
   }));
 
   // 선수
-  const players = DATA.players || DATA.athletes || [];
-  players.forEach(pl => out.push({
+  P.forEach(pl => out.push({
     type:'player',
-    id:   get(pl,['id','code'],''),
-    title:get(pl,['name','nameKo','nickname'],''),
-    img:  get(pl,['img','image','photo'],''),
-    meta: [get(pl,['team','club'],''), get(pl,['pos','position'],'')].filter(Boolean).join(' · '),
-    text: normalize([get(pl,['name','nameKo','nickname'],''),
-                     get(pl,['team','club'],''), get(pl,['pos','position'],'')].join(' '))
+    id:   get(pl,['id','code','slug'],''),
+    title:get(pl,['name','nameKo','nickname','displayName'],''),
+    img:  get(pl,['img','image','photo','avatar'],''),
+    meta: [get(pl,['team','club','teamName'],''), get(pl,['pos','position'], '')].filter(Boolean).join(' · '),
+    text: normalize([get(pl,['name','nameKo','nickname','displayName'],''),
+                     get(pl,['team','club','teamName'],''),
+                     get(pl,['pos','position'],'')].join(' '))
   }));
 
   // 뉴스
-  const news = DATA.news || DATA.articles || DATA.posts || [];
-  news.forEach(n => out.push({
+  N.forEach(n => out.push({
     type:'news',
     id:   get(n,['id','slug'],''),
     title:get(n,['title','headline'],''),
@@ -116,6 +132,7 @@ function buildIndexFromDATA() {
   return out;
 }
 
+// 2) 각 페이지 마크업에서 추출(데이터가 없어도 동작)
 function buildIndexFromViews() {
   const out = [];
   const parse = (html) => {
@@ -123,7 +140,7 @@ function buildIndexFromViews() {
     const tpl = document.createElement('template'); tpl.innerHTML = html;
     const root = tpl.content;
 
-    // 상품 카드
+    // 상품
     root.querySelectorAll('article.card, .product-card, article.product, [data-product-id]').forEach(el=>{
       const title = el.querySelector('h3,h4,.title')?.textContent?.trim() || '';
       const priceText = el.querySelector('.price')?.textContent || '';
@@ -133,17 +150,24 @@ function buildIndexFromViews() {
                  title, price, img, text: normalize([title, priceText].join(' ')) });
     });
 
-    // 선수 카드
-    root.querySelectorAll('.player-card, .athlete-card, .player').forEach(el=>{
-      const title = el.querySelector('h3,h4,.title')?.textContent?.trim() || '';
-      const meta  = el.querySelector('.muted,.meta')?.textContent?.trim() || '';
+    // 선수 (선택자 확장)
+    root.querySelectorAll([
+      '.player-card','.athlete-card','.player','.card.player',
+      '[data-player-id]','[data-player-name]'
+    ].join(',')).forEach(el=>{
+      const title = el.getAttribute('data-player-name')
+                 || el.querySelector('h2,h3,h4,.title,.name')?.textContent?.trim()
+                 || '';
+      const meta  = el.getAttribute('data-team')
+                 || el.querySelector('.muted,.meta,.team')?.textContent?.trim()
+                 || '';
       const img   = el.querySelector('img')?.getAttribute('src') || '';
-      out.push({ type:'player', id: title.toLowerCase(), title, img, meta,
-                 text: normalize([title, meta].join(' ')) });
+      out.push({ type:'player', id: (el.getAttribute('data-player-id')||title.toLowerCase()),
+                 title, img, meta, text: normalize([title, meta].join(' ')) });
     });
 
-    // 뉴스 카드
-    root.querySelectorAll('.news-card, article.news, .post-card').forEach(el=>{
+    // 뉴스
+    root.querySelectorAll('.news-card, article.news, .post-card, [data-type="news"]').forEach(el=>{
       const title = el.querySelector('h3,h4,.title')?.textContent?.trim() || '';
       const date  = el.querySelector('.date,.muted')?.textContent?.trim() || '';
       const img   = el.querySelector('img')?.getAttribute('src') || '';
@@ -152,18 +176,19 @@ function buildIndexFromViews() {
     });
   };
 
-  // 각 화면 마크업에서 긁어서 임시 인덱스 구성
+  // 각 화면의 HTML에서 긁어오기
   try { parse(View_store?.()); } catch {}
   try { parse(View_news?.()); } catch {}
   try { parse(View_esports?.()); } catch {}
   try { parse(View_basketball?.()); } catch {}
   try { parse(View_football?.()); } catch {}
   try { parse(View_index?.()); } catch {}
+
   return out;
 }
 
-function ensureSearchIndex() {
-  if (SEARCH_INDEX) return SEARCH_INDEX;
+function ensureSearchIndex(force=false) {
+  if (!force && SEARCH_INDEX) return SEARCH_INDEX;
   const fromData = buildIndexFromDATA();
   SEARCH_INDEX = fromData.length ? fromData : buildIndexFromViews();
   return SEARCH_INDEX;
@@ -317,6 +342,7 @@ function render() {
 
   let body = '';
   if (r === 'search') {
+    ensureSearchIndex(true); // 검색 진입 시 최신 인덱스로 리빌드
     const { q = '' } = parseHashQuery();
     body = renderSearchResults(q);
   } else {
