@@ -1,4 +1,3 @@
-
 import { state, saveState, $app, sha256 } from './js/state.js';
 import { getRoute, navigate, onRouteChange } from './js/router.js';
 import {
@@ -7,8 +6,28 @@ import {
   View_cart, View_login, View_signup
 } from './js/views-full.js';
 
+/* -------------------------------
+   파일명 → 라우트 매핑
+-------------------------------- */
+const fileToRoute = {
+  'index.html': 'home',
+  'store.html': 'store',
+  'cart.html': 'cart',
+  'login.html': 'login',
+  'signup.html': 'signup',
+  'search.html': 'search',
+  'esports.html': 'esports',
+  'basketball.html': 'basketball',
+  'football.html': 'football',
+  'news.html': 'news',
+  'matches.html': 'matches',
+};
+
+/* -------------------------------
+   공통 헤더(간단 버전)
+-------------------------------- */
 function Header() {
-  const cartCount = state.cart.reduce((s, i) => s + (i.qty||0), 0);
+  const cartCount = state.cart.reduce((s, i) => s + (i.qty || 0), 0);
   return `
     <header class="header">
       <div id="app-header"></div>
@@ -27,6 +46,9 @@ function Header() {
     </header>`;
 }
 
+/* -------------------------------
+   렌더러
+-------------------------------- */
 function render() {
   const r = getRoute();
   let body = '';
@@ -45,58 +67,118 @@ function render() {
     default:           body = View_index(); break;
   }
   $app().innerHTML = Header() + body;
-  enhanceActions(); // map legacy buttons to SPA actions
+
+  // ▼▼ 수정 추가: 남은 *.html 링크를 전부 #/route로 교체
+  patchLegacyLinks();
+  // 기존 마크업(class/속성) 그대로여도 SPA 동작하도록 버튼/링크 표준화
+  enhanceActions();
 }
 onRouteChange(render);
 
-// Map legacy DOM (from original pages) to SPA actions
+/* -------------------------------
+   *.html → #/route 자동 변환
+-------------------------------- */
+function patchLegacyLinks() {
+  // <a href="*.html"> → #/route
+  document.querySelectorAll('a[href$=".html"]').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    const file = href.split('/').pop().toLowerCase();
+    const route = fileToRoute[file];
+    if (route) {
+      a.setAttribute('href', `#/${route}`);
+      a.setAttribute('data-link', route);
+    }
+  });
+
+  // <form action="*.html"> → SPA에서 기본 제출 차단(라우트 이동만)
+  document.querySelectorAll('form[action$=".html"]').forEach(f => {
+    const act = f.getAttribute('action') || '';
+    const file = act.split('/').pop().toLowerCase();
+    const route = fileToRoute[file];
+    if (route) {
+      f.setAttribute('data-link', route);
+      f.removeAttribute('action');
+    }
+  });
+
+  // data-nav="store" 같은 커스텀 네비도 data-link로 매핑
+  document.querySelectorAll('[data-nav]').forEach(el => {
+    const r = (el.getAttribute('data-nav') || '').trim();
+    if (r) el.setAttribute('data-link', r);
+  });
+}
+
+/* -------------------------------
+   원본 버튼/링크 → SPA 표준 속성 부여
+-------------------------------- */
 function enhanceActions() {
-  // Add data-link to nav anchors/buttons that look like page links
-  document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el=>el.setAttribute('data-link','store'));
-  document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el=>el.setAttribute('data-link','cart'));
-  document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el=>el.setAttribute('data-link','login'));
-  document.querySelectorAll('a[href$="signup.html"], [data-nav="signup"]').forEach(el=>el.setAttribute('data-link','signup'));
-  document.querySelectorAll('a[href$="index.html"], [data-nav="home"], .logo').forEach(el=>el.setAttribute('data-link','home'));
+  // nav 유사 요소들에 data-link 부여
+  document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el => el.setAttribute('data-link', 'store'));
+  document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el => el.setAttribute('data-link', 'cart'));
+  document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el => el.setAttribute('data-link', 'login'));
+  document.querySelectorAll('a[href$="signup.html"], [data-nav="signup"]').forEach(el => el.setAttribute('data-link', 'signup'));
+  document.querySelectorAll('a[href$="index.html"], [data-nav="home"], .logo').forEach(el => el.setAttribute('data-link', 'home'));
 
-  // Add data-action for cart buttons commonly used in original markup
-  document.querySelectorAll('[data-add-to-cart], .add-to-cart, button.add-cart, button[data-role="add-cart"]').forEach(btn=>{
+  // 장바구니/구매 버튼에 data-action/data-id 자동 할당
+  document.querySelectorAll('[data-add-to-cart], .add-to-cart, button.add-cart, button[data-role="add-cart"]').forEach(btn => {
     const card = btn.closest('[data-id]') || btn.closest('[data-product-id]');
     const pid = (card?.getAttribute('data-id') || card?.getAttribute('data-product-id') || '').trim();
     if (pid) {
-      btn.setAttribute('data-action','add-to-cart');
+      btn.setAttribute('data-action', 'add-to-cart');
       btn.setAttribute('data-id', pid);
     }
   });
-  document.querySelectorAll('[data-buy-now], .buy-now, button.buy-now').forEach(btn=>{
+  document.querySelectorAll('[data-buy-now], .buy-now, button.buy-now').forEach(btn => {
     const card = btn.closest('[data-id]') || btn.closest('[data-product-id]');
     const pid = (card?.getAttribute('data-id') || card?.getAttribute('data-product-id') || '').trim();
     if (pid) {
-      btn.setAttribute('data-action','buy-now');
+      btn.setAttribute('data-action', 'buy-now');
       btn.setAttribute('data-id', pid);
     }
   });
 
-  // Fallback: match buttons with text '장바구니'/'바로구매'
-  Array.from(document.querySelectorAll('button')).forEach(btn=>{
-    const t = btn.textContent?.trim();
-    if (!btn.hasAttribute('data-action') && /장바구니/.test(t||'')) {
+  // 버튼 텍스트로도 보완 매칭
+  Array.from(document.querySelectorAll('button')).forEach(btn => {
+    const t = (btn.textContent || '').trim();
+    if (!btn.hasAttribute('data-action') && /장바구니/.test(t)) {
       const card = btn.closest('[data-id], [data-product-id]');
       const pid = (card?.getAttribute('data-id') || card?.getAttribute('data-product-id') || '').trim();
-      if (pid) { btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); }
+      if (pid) { btn.setAttribute('data-action', 'add-to-cart'); btn.setAttribute('data-id', pid); }
     }
-    if (!btn.hasAttribute('data-action') && /바로구매|구매/.test(t||'')) {
+    if (!btn.hasAttribute('data-action') && /바로구매|구매/.test(t)) {
       const card = btn.closest('[data-id], [data-product-id]');
       const pid = (card?.getAttribute('data-id') || card?.getAttribute('data-product-id') || '').trim();
-      if (pid) { btn.setAttribute('data-action','buy-now'); btn.setAttribute('data-id', pid); }
+      if (pid) { btn.setAttribute('data-action', 'buy-now'); btn.setAttribute('data-id', pid); }
     }
   });
 }
 
-// Global click delegation
+/* -------------------------------
+   전역 이벤트 위임
+-------------------------------- */
 document.addEventListener('click', (e) => {
-  const link = e.target.closest('[data-link]');
-  if (link) { navigate(link.getAttribute('data-link')); return; }
+  // 1) *.html로 가는 레거시 <a> 클릭 차단 후 SPA 라우팅
+  const legacyA = e.target.closest('a[href$=".html"]');
+  if (legacyA) {
+    const href = legacyA.getAttribute('href') || '';
+    const file = href.split('/').pop().toLowerCase();
+    const route = fileToRoute[file];
+    if (route) {
+      e.preventDefault();
+      navigate(route);
+      return;
+    }
+  }
 
+  // 2) data-link 기반 라우팅
+  const link = e.target.closest('[data-link]');
+  if (link) {
+    e.preventDefault();
+    navigate(link.getAttribute('data-link'));
+    return;
+  }
+
+  // 3) data-action 처리
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.getAttribute('data-action');
@@ -108,23 +190,27 @@ document.addEventListener('click', (e) => {
 
   if (action === 'add-to-cart' || action === 'buy-now') {
     if (!state.session) { alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
-    // Attempt to derive product info from DOM or fallback to defaults
-    let title = el.getAttribute('data-title') || (el.closest('[data-title]')?.getAttribute('data-title')) || '';
-    let price = parseInt(el.getAttribute('data-price') || (el.closest('[data-price]')?.getAttribute('data-price')) || '0',10) || 0;
-    let img = (el.closest('article, .card, .product, [data-img]')?.querySelector('img')?.getAttribute('src')) || '';
-    const pid = id || title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
-    if (!title) {
-      const card = el.closest('article, .card, .product, [data-title]');
-      title = card?.querySelector('h3,h4,.title')?.textContent?.trim() || '상품';
-    }
-    if (!price) {
-      const t = el.closest('article, .card')?.querySelector('.price')?.textContent || '';
-      const m = t.replace(/[^0-9]/g,''); price = m ? parseInt(m,10) : 0;
-    }
-    if (!img) img = el.closest('article, .card')?.querySelector('img')?.src || '';
-    // Merge into cart
+
+    // DOM에서 상품 정보 추출 (id/제목/가격/이미지)
+    const container = el.closest('[data-id], [data-title], [data-price], article, .card, .product');
+    let pid   = id || container?.getAttribute('data-id') || '';
+    let title = el.getAttribute('data-title') || container?.getAttribute('data-title') ||
+                container?.querySelector('h3,h4,.title')?.textContent?.trim() || '상품';
+    let price = parseInt(
+      el.getAttribute('data-price') ||
+      container?.getAttribute('data-price') ||
+      (container?.querySelector('.price')?.textContent || '').replace(/[^0-9]/g, '') ||
+      '0', 10
+    ) || 0;
+    let img   = container?.getAttribute('data-img') ||
+                container?.querySelector('img')?.getAttribute('src') || '';
+
+    if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g, '-');
+
     const ex = state.cart.find(x => x.id === pid);
-    if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
+    if (ex) ex.qty++;
+    else state.cart.push({ id: pid, title, price, img, qty: 1 });
+
     saveState(); render();
     if (action === 'buy-now') navigate('cart');
     return;
@@ -150,25 +236,29 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Form delegation
+/* -------------------------------
+   폼 위임 (로그인/회원가입)
+-------------------------------- */
 document.addEventListener('submit', async (e) => {
   const form = e.target;
+
   if (form.id === 'loginForm') {
     e.preventDefault();
     const fd = new FormData(form);
-    const username = (fd.get('username')||'').trim();
-    const password = fd.get('password')||'';
+    const username = (fd.get('username') || '').trim();
+    const password = fd.get('password') || '';
     const user = state.users.find(u => u.username === username);
     const passOk = user && (await sha256(password)) === user.passHash;
     if (!passOk) { alert('아이디 또는 비밀번호가 올바르지 않습니다.'); return; }
     state.session = { username };
     saveState(); navigate('home'); render();
   }
+
   if (form.id === 'signupForm') {
     e.preventDefault();
     const fd = new FormData(form);
-    const username = (fd.get('username')||'').trim();
-    const password = fd.get('password')||'';
+    const username = (fd.get('username') || '').trim();
+    const password = fd.get('password') || '';
     if (state.users.some(u => u.username === username)) { alert('이미 존재하는 아이디입니다.'); return; }
     const passHash = await sha256(password);
     state.users.push({ username, passHash });
