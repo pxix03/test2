@@ -472,3 +472,26 @@ mark{ background: rgba(255,235,59,.35); padding: 0 .15em; border-radius: 4px; }
 ========================= */
 
 :target { scroll-margin-top: 88px; }
+/* 헤더 네비 전용 중앙 정렬 강제 */
+header.site-header > .inner + .inner {
+  display: flex !important;
+  justify-content: center !important;
+}
+
+header.site-header nav.site-nav {
+  display: flex !important;
+  gap: 28px;
+  align-items: center;
+  /* 필요시 최대너비 박스 가운데 */
+  margin: 0 auto;
+}
+
+header.site-header nav.site-nav a {
+  padding: 10px 2px;
+  text-decoration: none;
+  /* 혹시 밑줄/보더가 활성 탭에 들어간다면 제거 */
+  border-bottom: none !important;
+}
+header.site-header nav.site-nav a[aria-current="page"] {
+  border-bottom: none !important;
+}
