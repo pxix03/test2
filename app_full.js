@@ -256,23 +256,45 @@ function mountHeader() {
         </div>
       </div>
       <div class="inner">
-        <nav class="site-nav">
-          <a href="#/home"       data-link="home">전체</a>
-          <a href="#/esports"    data-link="esports">e스포츠</a>
-          <a href="#/basketball" data-link="basketball">농구</a>
-          <a href="#/football"   data-link="football">축구</a>
+        <nav class="site-nav" site-nav--centered">
+          <a href="#/esports"    data-link="esports">리그 오브 레전드</a>
+          <a href="#/basketball" data-link="basketball">NBA</a>
+          <a href="#/football"   data-link="football">EPL</a>
           <a href="#/news"       data-link="news">뉴스</a>
-          <a href="#/matches"    data-link="matches">경기</a>
+          <a href="#/matches"    data-link="matches">경기 결과</a>
           <a href="#/store"      data-link="store">스토어</a>
         </nav>
       </div>
+      <div class="nav-divider"></div>
     </header>
   `;
 
   const old = document.querySelector('header.site-header'); if (old) old.remove();
   document.body.insertAdjacentHTML('afterbegin', html);
+  injectHeaderStyles();
   setActiveNav();
   wireSearch();
+}
+function injectHeaderStyles() {
+  if (document.getElementById('headerStylePatch')) return;
+  const css = `
+    .site-nav--centered {
+      display:flex; justify-content:center; gap:28px;
+      font-weight:600; letter-spacing:.1px;
+    }
+    .site-nav--centered a { padding:10px 2px; }
+    /* 기존 스타일이 aria-current에 밑줄을 주더라도 제거 */
+    .site-nav--centered a[aria-current="page"] { border-bottom:none !important; }
+    /* 상단 네비 아래 얇은 구분선(첫 번째 스샷 느낌) */
+    .nav-divider { height:1px; background:rgba(255,255,255,.08); }
+    /* 검색창이 가운데 정렬 느낌 나도록 최상단 레이아웃 보정(옵션) */
+    .header-top { align-items:center; }
+    .header-top .site-search { margin:0 auto; }
+  `;
+  const style = document.createElement('style');
+  style.id = 'headerStylePatch';
+  style.textContent = css;
+  document.head.appendChild(style);
 }
 function setActiveNav(){
   const r = routeOnly();
@@ -584,4 +606,5 @@ function initRowScrolls() {
     updateBtns(); window.addEventListener('resize',updateBtns,{passive:true});
   });
 }
+
 
