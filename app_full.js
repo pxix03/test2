@@ -6,9 +6,9 @@ import {
   View_cart, View_login, View_signup
 } from './js/views-full.js';
 
-/* -------------------------------
-   파일명 → 라우트 매핑
--------------------------------- */
+/* ========================================
+   파일명 → 라우트 매핑 (레거시 링크용)
+======================================== */
 const fileToRoute = {
   'index.html': 'home',
   'store.html': 'store',
@@ -23,18 +23,18 @@ const fileToRoute = {
   'matches.html': 'matches',
 };
 
-/* -------------------------------
-   공통 헤더 렌더/마운트
-   - 원래 header.html 스타일과 호환되는 구조
-   - 로그인/로그아웃/장바구니 동기화
--------------------------------- */
+/* ========================================
+   헤더 렌더 (styles.css 호환 클래스)
+   - 장바구니는 로그인 영역(auth-controls)에만 표시
+   - 카테고리 내비 전부 복구
+======================================== */
 function mountHeader() {
   const cartCount = state.cart.reduce((s, i) => s + (i.qty || 0), 0);
 
   const html = `
     <header class="site-header">
       <div class="inner header-top row-compact">
-        <a class="logo" data-link="home" aria-label="ENS 홈">ENS<span>Sports</span></a>
+        <a class="logo" href="#/home" data-link="home" aria-label="ENS 홈">ENS<span>Sports</span></a>
 
         <form class="site-search" id="siteSearchForm" onsubmit="return false">
           <input type="search" name="q" id="siteSearchInput"
@@ -47,26 +47,25 @@ function mountHeader() {
             state.session
             ? `
               <button class="user-chip" disabled>안녕하세요, <b>${state.session.username}</b>님</button>
-              <a class="button ghost" data-link="cart">장바구니 (${cartCount})</a>
+              <a class="button ghost" href="#/cart" data-link="cart">장바구니 (${cartCount})</a>
               <button class="button secondary" data-action="logout">로그아웃</button>
             `
             : `
-              <a class="button primary" data-link="login">로그인</a>
-              <a class="button ghost" data-link="signup">회원가입</a>
+              <a class="button primary" href="#/login" data-link="login">로그인</a>
+              <a class="button ghost" href="#/signup" data-link="signup">회원가입</a>
             `
           }
         </div>
       </div>
 
-      <!-- 카테고리 내비 전부 복구 -->
       <nav class="site-nav inner">
-        <a data-link="home">전체</a>
-        <a data-link="esports">e스포츠</a>
-        <a data-link="basketball">농구</a>
-        <a data-link="football">축구</a>
-        <a data-link="news">뉴스</a>
-        <a data-link="matches">경기</a>
-        <a data-link="store">스토어</a>
+        <a href="#/home"       data-link="home">전체</a>
+        <a href="#/esports"    data-link="esports">e스포츠</a>
+        <a href="#/basketball" data-link="basketball">농구</a>
+        <a href="#/football"   data-link="football">축구</a>
+        <a href="#/news"       data-link="news">뉴스</a>
+        <a href="#/matches"    data-link="matches">경기</a>
+        <a href="#/store"      data-link="store">스토어</a>
       </nav>
     </header>
   `;
@@ -78,25 +77,30 @@ function mountHeader() {
     if (exists) exists.outerHTML = html;
     else document.body.insertAdjacentHTML('afterbegin', html);
   }
-  setActiveNav(); // 현재 탭 강조
+  setActiveNav();
 }
 
-
-
 function setActiveNav() {
-  const r = getRoute(); // 'home' | 'store' | ...
+  const r = getRoute();
   document.querySelectorAll('.site-nav a').forEach(a => {
     const link = a.getAttribute('data-link');
-    const isCurrent = (link === r) || (r === 'home' && link === 'store' && location.hash === '');
-    a.setAttribute('aria-current', isCurrent ? 'page' : '');
+    a.setAttribute('aria-current', link === r ? 'page' : '');
   });
 }
 
-/* -------------------------------
-   렌더러
--------------------------------- */
+/* ========================================
+   렌더러 + 라우트 가드(cart)
+======================================== */
 function render() {
   const r = getRoute();
+
+  // 장바구니 라우트 가드: 비로그인 → 로그인으로
+  if (r === 'cart' && !state.session) {
+    alert('장바구니는 로그인 후 이용 가능합니다.');
+    navigate('login');
+    return;
+  }
+
   let body = '';
   switch (r) {
     case 'home':       body = View_index(); break;
@@ -113,7 +117,6 @@ function render() {
     default:           body = View_index(); break;
   }
 
-  // 메인 삽입 (헤더는 mountHeader가 주입)
   $app().innerHTML = body;
 
   patchLegacyLinks();   // *.html → #/route 변환
@@ -123,10 +126,11 @@ function render() {
 }
 onRouteChange(render);
 
-/* -------------------------------
+/* ========================================
    *.html → #/route 자동 변환
--------------------------------- */
+======================================== */
 function patchLegacyLinks() {
+  // <a href="*.html"> → #/route
   document.querySelectorAll('a[href$=".html"]').forEach(a => {
     const href = a.getAttribute('href') || '';
     const file = href.split('/').pop().toLowerCase();
@@ -136,6 +140,8 @@ function patchLegacyLinks() {
       a.setAttribute('data-link', route);
     }
   });
+
+  // <form action="*.html"> → SPA에서 라우트만 이동
   document.querySelectorAll('form[action$=".html"]').forEach(f => {
     const act = f.getAttribute('action') || '';
     const file = act.split('/').pop().toLowerCase();
@@ -145,23 +151,34 @@ function patchLegacyLinks() {
       f.removeAttribute('action');
     }
   });
+
+  // 커스텀 data-nav → data-link
   document.querySelectorAll('[data-nav]').forEach(el => {
     const r = (el.getAttribute('data-nav') || '').trim();
     if (r) el.setAttribute('data-link', r);
   });
+
+  // site-nav 내부 레거시도 보강
+  document.querySelectorAll('.site-nav a[href$=".html"]').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    const file = href.split('/').pop().toLowerCase();
+    const route = fileToRoute[file];
+    if (route) a.setAttribute('data-link', route);
+  });
 }
 
-/* -------------------------------
+/* ========================================
    원본 버튼/링크 → SPA 표준 속성 부여
--------------------------------- */
+======================================== */
 function enhanceActions() {
+  // 내비 유사 요소에 data-link 부여
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el => el.setAttribute('data-link', 'store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el => el.setAttribute('data-link', 'cart'));
   document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el => el.setAttribute('data-link', 'login'));
   document.querySelectorAll('a[href$="signup.html"], [data-nav="signup"]').forEach(el => el.setAttribute('data-link', 'signup'));
   document.querySelectorAll('a[href$="index.html"], [data-nav="home"], .logo').forEach(el => el.setAttribute('data-link', 'home'));
 
-  // 장바구니/구매 버튼에 data-action/data-id 자동 할당
+  // 장바구니/구매 버튼 매핑
   document.querySelectorAll('[data-add-to-cart], .add-to-cart, button.add-cart, button[data-role="add-cart"]').forEach(btn => {
     const card = btn.closest('[data-id]') || btn.closest('[data-product-id]');
     const pid = (card?.getAttribute('data-id') || card?.getAttribute('data-product-id') || '').trim();
@@ -179,6 +196,7 @@ function enhanceActions() {
     }
   });
 
+  // 버튼 텍스트로 보완
   Array.from(document.querySelectorAll('button')).forEach(btn => {
     const t = (btn.textContent || '').trim();
     if (!btn.hasAttribute('data-action') && /장바구니/.test(t)) {
@@ -194,10 +212,18 @@ function enhanceActions() {
   });
 }
 
-/* -------------------------------
+/* ========================================
+   도우미: 인터랙티브 요소 체크
+======================================== */
+function isInteractive(el) {
+  return !!el.closest('a, button, input, select, textarea, label, [contenteditable=""], [role="button"], [role="link"]');
+}
+
+/* ========================================
    전역 클릭/폼 위임
--------------------------------- */
+======================================== */
 document.addEventListener('click', (e) => {
+  // 레거시 a[href="*.html"] → SPA 라우팅
   const legacyA = e.target.closest('a[href$=".html"]');
   if (legacyA) {
     const href = legacyA.getAttribute('href') || '';
@@ -206,18 +232,50 @@ document.addEventListener('click', (e) => {
     if (route) { e.preventDefault(); navigate(route); return; }
   }
 
+  // data-link 라우팅
   const link = e.target.closest('[data-link]');
-  if (link) { e.preventDefault(); navigate(link.getAttribute('data-link')); return; }
+  if (link) {
+    e.preventDefault();
+    const to = link.getAttribute('data-link');
+    if (to === 'cart' && !state.session) { alert('장바구니는 로그인 후 이용 가능합니다.'); navigate('login'); return; }
+    navigate(to);
+    return;
+  }
 
+  // 카드 전체 클릭: 카드 안 첫 링크/라우트로 이동 (인터랙티브 클릭은 무시)
+  const card = e.target.closest('.card, .product-card, article.product, .category-card');
+  if (card && !isInteractive(e.target)) {
+    const firstLinkEl =
+      card.querySelector('[data-link]') ||
+      card.querySelector('a[href^="#/"]') ||
+      card.querySelector('a[href$=".html"]');
+
+    if (firstLinkEl) {
+      e.preventDefault();
+      const href = firstLinkEl.getAttribute('href') || '';
+      if (href.endsWith('.html')) {
+        const file = href.split('/').pop().toLowerCase();
+        const route = fileToRoute[file];
+        if (route) { navigate(route); return; }
+      }
+      const to = firstLinkEl.getAttribute('data-link') || href.replace(/^#\//,'');
+      if (to) { navigate(to); return; }
+    }
+  }
+
+  // 장바구니/구매/로그아웃
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.getAttribute('data-action');
   const id = el.getAttribute('data-id');
 
-  if (action === 'logout') { state.session = null; saveState(); render(); return; }
+  if (action === 'logout') {
+    state.session = null; saveState(); render(); return;
+  }
 
   if (action === 'add-to-cart' || action === 'buy-now') {
     if (!state.session) { alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
+
     const container = el.closest('[data-id], [data-title], [data-price], article, .card, .product');
     let pid   = id || container?.getAttribute('data-id') || '';
     let title = el.getAttribute('data-title') || container?.getAttribute('data-title') ||
@@ -272,10 +330,10 @@ document.addEventListener('submit', async (e) => {
   }
 });
 
-/* -------------------------------
+/* ========================================
    가로 스크롤 초기화 (row-scroll.js 포팅)
-   - .row-shell 안에 .row-scroll, 좌/우 버튼(.row-nav2.prev/.next) 가정
--------------------------------- */
+   .row-shell > .row-scroll, 좌/우 버튼 .row-nav2.prev/.next
+======================================== */
 function initRowScrolls() {
   document.querySelectorAll('.row-shell').forEach(shell => {
     const row = shell.querySelector('.row-scroll');
@@ -306,42 +364,22 @@ function initRowScrolls() {
       setTimeout(updateBtns, 250);
     };
 
-    // 버튼 클릭
     prevBtn?.addEventListener('click', () => scrollBy(-Math.round(row.clientWidth * 0.9)));
     nextBtn?.addEventListener('click', () => scrollBy(+Math.round(row.clientWidth * 0.9)));
 
-    // 휠 가로 스크롤
     row.addEventListener('wheel', (e) => {
-      if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return; // 수직 우선이면 패스
+      if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
       e.preventDefault();
       row.scrollLeft += e.deltaX;
       updateBtns();
     }, { passive: false });
 
-    // 드래그 스크롤
     let dragging = false, startX = 0, startLeft = 0;
-    row.addEventListener('mousedown', (e) => {
-      dragging = true; startX = e.clientX; startLeft = row.scrollLeft;
-      row.classList.add('dragging');
-    });
-    window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      const dx = e.clientX - startX;
-      row.scrollLeft = startLeft - dx;
-      updateBtns();
-    });
-    window.addEventListener('mouseup', () => {
-      if (!dragging) return;
-      dragging = false; row.classList.remove('dragging');
-    });
+    row.addEventListener('mousedown', (e) => { dragging = true; startX = e.clientX; startLeft = row.scrollLeft; row.classList.add('dragging'); });
+    window.addEventListener('mousemove', (e) => { if (!dragging) return; const dx = e.clientX - startX; row.scrollLeft = startLeft - dx; updateBtns(); });
+    window.addEventListener('mouseup', () => { if (!dragging) return; dragging = false; row.classList.remove('dragging'); });
 
-    // 초기 상태
     updateBtns();
-    // 리사이즈 시 재계산
     window.addEventListener('resize', updateBtns, { passive: true });
   });
 }
-
-
-
-
