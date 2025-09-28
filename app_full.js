@@ -43,8 +43,7 @@ function mountHeader() {
         </form>
 
         <div class="auth-controls">
-          ${
-            state.session
+          ${state.session
             ? `
               <button class="user-chip" disabled>안녕하세요, <b>${state.session.username}</b>님</button>
               <a class="button ghost" href="#/cart" data-link="cart">장바구니 (${cartCount})</a>
@@ -70,13 +69,11 @@ function mountHeader() {
     </header>
   `;
 
-  const mount = document.getElementById('app-header');
-  if (mount) mount.outerHTML = html;
-  else {
-    const exists = document.querySelector('header.site-header');
-    if (exists) exists.outerHTML = html;
-    else document.body.insertAdjacentHTML('afterbegin', html);
-  }
+  // 항상 body 맨 앞에 두어 레이아웃 간섭 방지
+  const old = document.querySelector('header.site-header');
+  if (old) old.remove();
+  document.body.insertAdjacentHTML('afterbegin', html);
+
   setActiveNav();
 }
 
@@ -242,9 +239,13 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // 카드 전체 클릭: 카드 안 첫 링크/라우트로 이동 (인터랙티브 클릭은 무시)
-  const card = e.target.closest('.card, .product-card, article.product, .category-card');
+ {
+  const card = e.target.closest(
+    '.card, .product-card, article.product, .category-card,' +
+    '.player-card, .news-card, .match-card' // ← 추가
+  );
   if (card && !isInteractive(e.target)) {
+    // 카드 안에서 첫 번째 이동 가능한 대상 찾기
     const firstLinkEl =
       card.querySelector('[data-link]') ||
       card.querySelector('a[href^="#/"]') ||
@@ -253,6 +254,7 @@ document.addEventListener('click', (e) => {
     if (firstLinkEl) {
       e.preventDefault();
       const href = firstLinkEl.getAttribute('href') || '';
+      // 레거시 *.html → 라우트 변환
       if (href.endsWith('.html')) {
         const file = href.split('/').pop().toLowerCase();
         const route = fileToRoute[file];
@@ -262,7 +264,7 @@ document.addEventListener('click', (e) => {
       if (to) { navigate(to); return; }
     }
   }
-
+}
   // 장바구니/구매/로그아웃
   const el = e.target.closest('[data-action]');
   if (!el) return;
@@ -383,3 +385,4 @@ function initRowScrolls() {
     window.addEventListener('resize', updateBtns, { passive: true });
   });
 }
+
