@@ -83,6 +83,15 @@ async function loadDATA() {
 }
 
 // 1) JS 데이터에서 인덱스 구성(레거시 전역 포함)
+function classifyFromText(t){
+  if (!t) return { cat:null, route:null };
+  const s = t.toLowerCase();
+  if (/(lol|league of legends|t1|faker|lck)/.test(s))     return { cat:'lol',  route:'esports' };
+  if (/(nba|lakers|warriors|bucks|celtics|basketball)/.test(s)) return { cat:'nba',  route:'basketball' };
+  if (/(epl|tottenham|arsenal|liverpool|맨시티|손흥민|son)/.test(s)) return { cat:'epl',  route:'football' };
+  return { cat:null, route:null };
+}
+
 async function buildIndexFromDATA() {
   const out = [];
   let PR = [], P = [], N = [];
@@ -94,7 +103,6 @@ async function buildIndexFromDATA() {
     N  = DATA.news     || DATA.articles || DATA.posts || N;
   } catch {}
 
-  // 레거시 전역 (search-data.js 등)
   try {
     const g = (window.SEARCH_DATA || window.searchData || window);
     if (!P.length  && g && (g.players  || g.athletes))   P  = g.players  || g.athletes;
@@ -102,47 +110,51 @@ async function buildIndexFromDATA() {
     if (!PR.length && g && (g.products || g.items    || g.catalog)) PR = g.products || g.items || g.catalog;
   } catch {}
 
-  // 상품
-  PR.forEach(p => out.push({
-    type:'product',
-    id:   get(p,['id','sku','code'],''),
-    title:get(p,['title','name','label','headline'],''),
-    price:Number(get(p,['price','cost','amount'],0))||0,
-    img:  get(p,['img','image','thumbnail','thumb'],''),
-    text: normalize([get(p,['title','name','label','headline'],''),
-                     get(p,['desc','description','body','detail'],'')].join(' '))
-  }));
+  // 상품 → 스토어
+  PR.forEach(p => {
+    const title = get(p,['title','name','label','headline'],'');
+    const text  = normalize([title, get(p,['desc','description','body','detail'],'')].join(' '));
+    out.push({
+      type:'product', cat:'store', route:'store',
+      id:   get(p,['id','sku','code'],''),
+      title, price:Number(get(p,['price','cost','amount'],0))||0,
+      text
+    });
+  });
 
-  // 선수
-  P.forEach(pl => out.push({
-    type:'player',
-    id:   get(pl,['id','code','slug'],''),
-    title:get(pl,['name','nameKo','nickname','displayName'],''),
-    img:  get(pl,['img','image','photo','avatar'],''),
-    meta: [get(pl,['team','club','teamName'],''), get(pl,['pos','position'], '')].filter(Boolean).join(' · '),
-    text: normalize([get(pl,['name','nameKo','nickname','displayName'],''),
-                     get(pl,['team','club','teamName'],''),
-                     get(pl,['pos','position'],'')].join(' '))
-  }));
+  // 선수 → 텍스트로 종목 추정(LOL/NBA/EPL)
+  P.forEach(pl => {
+    const title = get(pl,['name','nameKo','nickname','displayName'],'');
+    const meta  = [get(pl,['team','club','teamName'],''),
+                   get(pl,['pos','position'],'')].filter(Boolean).join(' · ');
+    const text  = normalize([title, meta].join(' '));
+    const {cat,route} = classifyFromText(text);
+    out.push({
+      type:'player', cat, route,
+      id:   get(pl,['id','code','slug'],''),
+      title, meta, text
+    });
+  });
 
-  // 뉴스
-  N.forEach(n => out.push({
-    type:'news',
-    id:   get(n,['id','slug'],''),
-    title:get(n,['title','headline'],''),
-    date: get(n,['date','pubDate','publishedAt'],''),
-    img:  get(n,['img','image','cover'],''),
-    text: normalize([get(n,['title','headline'],''),
-                     get(n,['summary','excerpt','body','content'],'')].join(' '))
-  }));
+  // 뉴스 → news
+  N.forEach(n => {
+    const title = get(n,['title','headline'],'');
+    const date  = get(n,['date','pubDate','publishedAt'],'');
+    const text  = normalize([title, get(n,['summary','excerpt','body','content'],'')].join(' '));
+    out.push({
+      type:'news', cat:'news', route:'news',
+      id:get(n,['id','slug'],''), title, date, text
+    });
+  });
 
   return out;
 }
 
+
 // 2) 각 페이지 마크업에서 추출(데이터가 없어도 동작)
 function buildIndexFromViews() {
   const out = [];
-  const parse = (html) => {
+  const parse = (html, cat, route) => {
     if (!html) return;
     const tpl = document.createElement('template'); tpl.innerHTML = html;
     const root = tpl.content;
@@ -152,45 +164,53 @@ function buildIndexFromViews() {
       const title = el.querySelector('h3,h4,.title')?.textContent?.trim() || '';
       const priceText = el.querySelector('.price')?.textContent || '';
       const price = parseInt((priceText.match(/[0-9,]+/)||['0'])[0].replace(/,/g,''),10)||0;
-      const img = el.querySelector('img')?.getAttribute('src') || '';
-      out.push({ type:'product', id: el.getAttribute('data-id')||title.toLowerCase(),
-                 title, price, img, text: normalize([title, priceText].join(' ')) });
+      out.push({
+        type:'product', cat: 'store', route: 'store',
+        id: el.getAttribute('data-id')||title.toLowerCase(),
+        title, price,
+        text: normalize([title, priceText].join(' '))
+      });
     });
 
-    // 선수 (선택자 확장)
+    // 선수
     root.querySelectorAll([
       '.player-card','.athlete-card','.player','.card.player',
       '[data-player-id]','[data-player-name]'
     ].join(',')).forEach(el=>{
       const title = el.getAttribute('data-player-name')
-                 || el.querySelector('h2,h3,h4,.title,.name')?.textContent?.trim()
-                 || '';
+                 || el.querySelector('h2,h3,h4,.title,.name')?.textContent?.trim() || '';
       const meta  = el.getAttribute('data-team')
-                 || el.querySelector('.muted,.meta,.team')?.textContent?.trim()
-                 || '';
-      const img   = el.querySelector('img')?.getAttribute('src') || '';
-      out.push({ type:'player', id: (el.getAttribute('data-player-id')||title.toLowerCase()),
-                 title, img, meta, text: normalize([title, meta].join(' ')) });
+                 || el.querySelector('.muted,.meta,.team')?.textContent?.trim() || '';
+      out.push({
+        type:'player', cat, route,
+        id: (el.getAttribute('data-player-id')||title.toLowerCase()),
+        title, meta,
+        text: normalize([title, meta].join(' '))
+      });
     });
 
     // 뉴스
     root.querySelectorAll('.news-card, article.news, .post-card, [data-type="news"]').forEach(el=>{
       const title = el.querySelector('h3,h4,.title')?.textContent?.trim() || '';
       const date  = el.querySelector('.date,.muted')?.textContent?.trim() || '';
-      const img   = el.querySelector('img')?.getAttribute('src') || '';
-      out.push({ type:'news', id: title.toLowerCase(), title, date, img,
-                 text: normalize([title, date].join(' ')) });
+      out.push({
+        type:'news', cat: 'news', route: 'news',
+        id: title.toLowerCase(), title, date,
+        text: normalize([title, date].join(' '))
+      });
     });
   };
 
-  try { parse(View_store?.()); } catch {}
-  try { parse(View_news?.()); } catch {}
-  try { parse(View_esports?.()); } catch {}
-  try { parse(View_basketball?.()); } catch {}
-  try { parse(View_football?.()); } catch {}
-  try { parse(View_index?.()); } catch {}
+  // 각 화면에서 긁어오되 카테고리/라우트 힌트를 같이 준다
+  try { parse(View_esports?.(),    'lol',  'esports'); }   catch {}
+  try { parse(View_basketball?.(), 'nba',  'basketball'); }catch {}
+  try { parse(View_football?.(),   'epl',  'football'); }  catch {}
+  try { parse(View_news?.(),       'news', 'news'); }      catch {}
+  try { parse(View_store?.(),      'store','store'); }     catch {}
+  try { parse(View_index?.(),      null,    null); }       catch {}
   return out;
 }
+
 
 async function ensureSearchIndex(force=false) {
   if (!force && SEARCH_INDEX) return SEARCH_INDEX;
@@ -279,62 +299,82 @@ function wireSearch(){
    검색 결과 렌더 (호환 인덱스 사용)
 ======================================== */
 function renderSearchResults(q){
+  const { tab = 'all' } = parseHashQuery();          // 탭 파라미터
   const idx = SEARCH_INDEX || [];
   const term = normalize(q);
-  const matched = term ? idx.filter(it => it.text.includes(term)) : [];
+  let matched = term ? idx.filter(it => it.text.includes(term)) : [];
 
-  const byType = (t) => matched.filter(m => m.type === t);
-  const section = (title, html) => html ? `
-    <section class="section"><div class="inner">
-      <h2>${title}</h2>${html}
-    </div></section>` : '';
+  // 탭 필터
+  const tabMap = {
+    all:   {label:'전체',   pred:()=>true},
+    lol:   {label:'LoL',    pred:(it)=>it.cat==='lol'},
+    nba:   {label:'NBA',    pred:(it)=>it.cat==='nba'},
+    epl:   {label:'EPL',    pred:(it)=>it.cat==='epl'},
+    news:  {label:'뉴스',   pred:(it)=>it.cat==='news'},
+    match: {label:'경기',   pred:(it)=>it.cat==='matches'},  // 필요시 확장
+    store: {label:'스토어', pred:(it)=>it.cat==='store'},
+  };
+  if (tabMap[tab]) matched = matched.filter(tabMap[tab].pred);
 
-  const prod = byType('product'); const players = byType('player'); const news = byType('news');
+  // 카테고리 칩 라벨
+  const chip = (it) => {
+    switch (it.cat) {
+      case 'lol':  return 'LOL';
+      case 'nba':  return 'NBA';
+      case 'epl':  return 'EPL';
+      case 'news': return 'NEWS';
+      case 'store':return 'STORE';
+      default:     return (it.type||'').toUpperCase();
+    }
+  };
 
-  const prodHtml = prod.length ? `<div class="grid products">${
-    prod.map(p=>`
-      <article class="card product" data-id="${p.id}" data-title="${p.title}" data-price="${p.price}" data-img="${p.img}" data-link="store">
-        ${p.img ? `<img src="${p.img}" alt="${p.title}">` : ''}
-        <div class="card-body">
-          <h4 class="title">${p.title}</h4>
-          <div class="price">${(p.price||0).toLocaleString('ko-KR')}원</div>
-          <div class="row">
-            <button class="button" data-action="add-to-cart" data-id="${p.id}">장바구니</button>
-            <button class="button ghost" data-action="buy-now" data-id="${p.id}">바로구매</button>
-          </div>
+  // 탭 UI
+  const tabs = Object.entries(tabMap).map(([k,v])=>{
+    const active = (k===tab) ? 'aria-current="true"' : '';
+    const href   = `#/search?q=${encodeURIComponent(q)}&tab=${k}`;
+    return `<a class="pill" ${active} href="${href}">${v.label}</a>`;
+  }).join(' ');
+
+  // 결과 카드(2번째 스샷 스타일)
+  const cards = matched.map(it=>{
+    const subtitle = it.type==='player' ? (it.meta||'') :
+                     it.type==='news'   ? (it.date||'') :
+                     it.type==='product'? ( (it.price||0).toLocaleString('ko-KR') + '원') : '';
+    const goRoute  = it.route || (it.cat==='store' ? 'store' :
+                     it.cat==='lol' ? 'esports' :
+                     it.cat==='nba' ? 'basketball' :
+                     it.cat==='epl' ? 'football' :
+                     it.cat==='news'? 'news' : 'home');
+
+    return `
+      <article class="card result-card">
+        <div class="pill small">${chip(it)}</div>
+        <h3 class="title">${it.title}</h3>
+        ${subtitle ? `<p class="muted">${subtitle}</p>` : ''}
+        <div class="row" style="justify-content:flex-end">
+          <a class="button ghost" data-link="${goRoute}">바로가기</a>
         </div>
-      </article>`).join('')
-  }</div>` : `<p class="muted">상품 결과가 없습니다.</p>`;
+      </article>
+    `;
+  }).join('');
 
-  const playersHtml = players.length ? `<div class="grid players">${
-    players.map(p=>`
-      <article class="player-card" data-link="players">
-        ${p.img ? `<img src="${p.img}" alt="${p.title}">` : ''}
-        <div class="card-body">
-          <h4 class="title">${p.title}</h4>
-          ${p.meta ? `<p class="muted">${p.meta}</p>` : ''}
-        </div>
-      </article>`).join('')
-  }</div>` : `<p class="muted">선수 결과가 없습니다.</p>`;
-
-  const newsHtml = news.length ? `<div class="grid news">${
-    news.map(n=>`
-      <article class="news-card" data-link="news">
-        ${n.img ? `<img src="${n.img}" alt="${n.title}">` : ''}
-        <div class="card-body">
-          <h4 class="title">${n.title}</h4>
-          ${n.date ? `<p class="muted">${n.date}</p>` : ''}
-        </div>
-      </article>`).join('')
-  }</div>` : `<p class="muted">뉴스 결과가 없습니다.</p>`;
+  const totalText = `${matched.length}건 검색됨`;
 
   return `
-    <section class="section"><div class="inner">
-      <h1>검색</h1><p class="muted">"${q}" 검색 결과</p>
-    </div></section>
-    ${section('상품', prodHtml)}
-    ${section('선수', playersHtml)}
-    ${section('뉴스', newsHtml)}
+    <section class="section">
+      <div class="inner">
+        <h1>검색 결과</h1>
+        <p class="muted">검색어: ${q || '(전체)'}</p>
+        <div class="tabs">${tabs}</div>
+        <p class="muted" style="margin-top:12px">${totalText}</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="inner">
+        ${cards || `<p class="muted">결과가 없습니다.</p>`}
+      </div>
+    </section>
   `;
 }
 
@@ -544,3 +584,4 @@ function initRowScrolls() {
     updateBtns(); window.addEventListener('resize',updateBtns,{passive:true});
   });
 }
+
