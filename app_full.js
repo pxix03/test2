@@ -30,39 +30,52 @@ const fileToRoute = {
 -------------------------------- */
 function mountHeader() {
   const cartCount = state.cart.reduce((s, i) => s + (i.qty || 0), 0);
+
+  // styles.css가 기대하는 클래스들로 구성 (site-header / header-top row-compact / site-search / auth-controls / site-nav)
   const html = `
-    <div class="inner header-top">
-      <a class="logo" data-link="home" aria-label="ENS 홈">ENS</a>
-      <div class="header-actions">
-        ${state.session
-          ? `<span class="hello">안녕하세요, <b>${state.session.username}</b>님</span>
-             <button class="btn ghost" data-link="cart">장바구니 (${cartCount})</button>
-             <button class="btn outline" data-action="logout">로그아웃</button>`
-          : `<button class="btn" data-link="login">로그인</button>
-             <button class="btn ghost" data-link="signup">회원가입</button>`
-        }
+    <header class="site-header">
+      <div class="inner header-top row-compact">
+        <a class="logo" data-link="home" aria-label="ENS 홈">ENS<span>Sports</span></a>
+
+        <form class="site-search" id="siteSearchForm" onsubmit="return false">
+          <input type="search" name="q" id="siteSearchInput"
+                 placeholder="검색 (선수, 뉴스, 팀, 상품…)" autocomplete="off" />
+          <button type="button" class="button primary" data-link="search">검색</button>
+        </form>
+
+        <div class="auth-controls">
+          ${state.session
+            ? `<button class="user-chip" disabled>안녕하세요, <b>${state.session.username}</b>님</button>
+               <a class="button ghost" data-link="cart">장바구니 (${cartCount})</a>
+               <button class="button secondary" data-action="logout">로그아웃</button>`
+            : `<a class="button primary" data-link="login">로그인</a>
+               <a class="button ghost" data-link="signup">회원가입</a>`
+          }
+        </div>
       </div>
-    </div>
-    <nav class="nav inner">
-      <button class="nav-btn" data-link="store">스토어</button>
-      <button class="nav-btn" data-link="news">뉴스</button>
-      <button class="nav-btn" data-link="players">선수</button>
-      <button class="nav-btn" data-link="cart">장바구니</button>
-    </nav>
+
+      <nav class="site-nav inner">
+        <a data-link="store">스토어</a>
+        <a data-link="news">뉴스</a>
+        <a data-link="players">선수</a>
+        <a data-link="cart">장바구니</a>
+      </nav>
+    </header>
   `;
-  // 1) views-full가 넣어둔 헤더 마운트 포인트가 있으면 거기에 주입
+
+  // 기존 헤더 자리(#app-header)가 있으면 거기 주입, 없으면 상단에 삽입
   const mount = document.getElementById('app-header');
   if (mount) {
-    mount.classList.add('header'); // 보장
-    mount.innerHTML = html;
+    mount.outerHTML = html; // mount 자체를 site-header로 대체
   } else {
-    // 2) 없으면 헤더를 최상단에 생성
-    const header = document.querySelector('header.header') || document.createElement('header');
-    header.className = 'header';
-    header.innerHTML = html;
-    document.body.prepend(header);
+    const exists = document.querySelector('header.site-header');
+    if (exists) exists.outerHTML = html;
+    else document.body.insertAdjacentHTML('afterbegin', html);
   }
+
+  setActiveNav(); // 현재 라우트 강조
 }
+
 
 /* -------------------------------
    렌더러
@@ -313,3 +326,4 @@ function initRowScrolls() {
     window.addEventListener('resize', updateBtns, { passive: true });
   });
 }
+
