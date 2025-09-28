@@ -45,42 +45,42 @@ function mountHeader() {
         <div class="auth-controls">
           ${
             state.session
-              // 로그인 상태: 사용자칩 + (로그아웃 옆) 장바구니 표시
-              ? `
-                <button class="user-chip" disabled>
-                  안녕하세요, <b>${state.session.username}</b>님
-                </button>
-                <a class="button ghost" data-link="cart">장바구니 (${cartCount})</a>
-                <button class="button secondary" data-action="logout">로그아웃</button>
-              `
-              // 비로그인: 로그인/회원가입만 (장바구니 없음)
-              : `
-                <a class="button primary" data-link="login">로그인</a>
-                <a class="button ghost" data-link="signup">회원가입</a>
-              `
+            ? `
+              <button class="user-chip" disabled>안녕하세요, <b>${state.session.username}</b>님</button>
+              <a class="button ghost" data-link="cart">장바구니 (${cartCount})</a>
+              <button class="button secondary" data-action="logout">로그아웃</button>
+            `
+            : `
+              <a class="button primary" data-link="login">로그인</a>
+              <a class="button ghost" data-link="signup">회원가입</a>
+            `
           }
         </div>
       </div>
 
-      <!-- 내비게이션에는 장바구니를 넣지 않습니다 -->
+      <!-- 카테고리 내비 전부 복구 -->
       <nav class="site-nav inner">
-        <a data-link="store">스토어</a>
+        <a data-link="home">전체</a>
+        <a data-link="esports">e스포츠</a>
+        <a data-link="basketball">농구</a>
+        <a data-link="football">축구</a>
         <a data-link="news">뉴스</a>
-        <a data-link="players">선수</a>
+        <a data-link="matches">경기</a>
+        <a data-link="store">스토어</a>
       </nav>
     </header>
   `;
 
   const mount = document.getElementById('app-header');
-  if (mount) {
-    mount.outerHTML = html;
-  } else {
+  if (mount) mount.outerHTML = html;
+  else {
     const exists = document.querySelector('header.site-header');
     if (exists) exists.outerHTML = html;
     else document.body.insertAdjacentHTML('afterbegin', html);
   }
-  setActiveNav(); // 현재 탭 강조 유지
+  setActiveNav(); // 현재 탭 강조
 }
+
 
 
 function setActiveNav() {
@@ -341,6 +341,7 @@ function initRowScrolls() {
     window.addEventListener('resize', updateBtns, { passive: true });
   });
 }
+
 
 
 
