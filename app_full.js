@@ -1,4 +1,4 @@
-// app_full.js — SPA 엔트리 (헤더/검색/네비/카드클릭/가로스크롤/장바구니가드 + 검색 인덱스 강화)
+// app_full.js — SPA 엔트리 (동적 DATA 로드 + 안전한 검색 인덱스 + 헤더/네비/카드/가로스크롤/가드)
 
 import { state, saveState, $app, sha256 } from './js/state.js';
 import { navigate, onRouteChange } from './js/router.js';
@@ -7,7 +7,7 @@ import {
   View_news, View_matches, View_store, View_search,
   View_cart, View_login, View_signup
 } from './js/views-full.js';
-import { DATA } from './js/data.js'; // 없으면 빈 객체 export 권장
+// ⚠️ 정적 import { DATA } 제거! 동적 로드로 대체합니다.
 
 /* ========================================
    레거시 파일명 → 라우트 매핑
@@ -28,7 +28,6 @@ const fileToRoute = {
 
 /* ========================================
    라우트/쿼리 파서 (해시 기반)
-   - #/search?q=abc  → routeOnly() === 'search'
 ======================================== */
 function routeOnly() {
   const h = (location.hash || '').replace(/^#\/?/, '');
@@ -66,25 +65,33 @@ function mapHomeCardToRoute(card){
 }
 
 /* ========================================
-   검색 인덱스 (DATA/레거시/마크업 모두 흡수)
+   동적 DATA 로드 + 검색 인덱스 (DATA/레거시/마크업 흡수)
 ======================================== */
 let SEARCH_INDEX = null;
 
 function normalize(s='') { return s.toString().toLowerCase().normalize('NFKC').trim(); }
 const get = (o, keys, fb='') => { if (!o) return fb; for (const k of keys) if (o[k]!=null) return o[k]; return fb; };
 
+// DATA를 동적으로 가져오기 (없으면 전역 → 빈 객체 순)
+async function loadDATA() {
+  try {
+    const mod = await import('./js/data.js'); // 존재하면 로드
+    return mod?.DATA ?? {};
+  } catch {
+    try { return (window.DATA || window.SEARCH_DATA || {}); } catch { return {}; }
+  }
+}
+
 // 1) JS 데이터에서 인덱스 구성(레거시 전역 포함)
-function buildIndexFromDATA() {
+async function buildIndexFromDATA() {
   const out = [];
   let PR = [], P = [], N = [];
 
-  // 표준 DATA
   try {
-    if (typeof DATA !== 'undefined') {
-      PR = DATA.products || DATA.items || DATA.catalog || PR;
-      P  = DATA.players  || DATA.athletes || P;
-      N  = DATA.news     || DATA.articles || DATA.posts || N;
-    }
+    const DATA = await loadDATA();
+    PR = DATA.products || DATA.items || DATA.catalog || PR;
+    P  = DATA.players  || DATA.athletes || P;
+    N  = DATA.news     || DATA.articles || DATA.posts || N;
   } catch {}
 
   // 레거시 전역 (search-data.js 등)
@@ -176,27 +183,29 @@ function buildIndexFromViews() {
     });
   };
 
-  // 각 화면의 HTML에서 긁어오기
   try { parse(View_store?.()); } catch {}
   try { parse(View_news?.()); } catch {}
   try { parse(View_esports?.()); } catch {}
   try { parse(View_basketball?.()); } catch {}
   try { parse(View_football?.()); } catch {}
   try { parse(View_index?.()); } catch {}
-
   return out;
 }
 
-function ensureSearchIndex(force=false) {
+async function ensureSearchIndex(force=false) {
   if (!force && SEARCH_INDEX) return SEARCH_INDEX;
-  const fromData = buildIndexFromDATA();
-  SEARCH_INDEX = fromData.length ? fromData : buildIndexFromViews();
+  try {
+    const fromData = await buildIndexFromDATA();
+    SEARCH_INDEX = fromData.length ? fromData : buildIndexFromViews();
+  } catch (err) {
+    console.error('[search-index] build failed:', err);
+    SEARCH_INDEX = buildIndexFromViews(); // 최후 폴백
+  }
   return SEARCH_INDEX;
 }
 
 /* ========================================
    헤더 렌더 (styles.css 호환 + 네비 중앙정렬 + 검색 연결)
-   - 장바구니는 로그인 영역(auth-controls)에서만 노출
 ======================================== */
 function mountHeader() {
   const cartCount = state.cart.reduce((s, i) => s + (i.qty || 0), 0);
@@ -270,7 +279,7 @@ function wireSearch(){
    검색 결과 렌더 (호환 인덱스 사용)
 ======================================== */
 function renderSearchResults(q){
-  const idx = ensureSearchIndex();
+  const idx = SEARCH_INDEX || [];
   const term = normalize(q);
   const matched = term ? idx.filter(it => it.text.includes(term)) : [];
 
@@ -332,7 +341,7 @@ function renderSearchResults(q){
 /* ========================================
    렌더러 + 장바구니 라우트 가드
 ======================================== */
-function render() {
+async function render() {
   const r = routeOnly();
 
   if (r === 'cart' && !state.session) {
@@ -342,7 +351,7 @@ function render() {
 
   let body = '';
   if (r === 'search') {
-    ensureSearchIndex(true); // 검색 진입 시 최신 인덱스로 리빌드
+    await ensureSearchIndex(true); // 검색 진입 시 최신 인덱스로 리빌드
     const { q = '' } = parseHashQuery();
     body = renderSearchResults(q);
   } else {
@@ -378,7 +387,7 @@ function render() {
     });
   }
 }
-onRouteChange(render);
+onRouteChange(() => { render(); });
 
 /* ========================================
    *.html → #/route 자동 변환
