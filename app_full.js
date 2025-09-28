@@ -76,6 +76,14 @@ function mountHeader() {
   setActiveNav(); // 현재 라우트 강조
 }
 
+function setActiveNav() {
+  const r = getRoute(); // 'home' | 'store' | ...
+  document.querySelectorAll('.site-nav a').forEach(a => {
+    const link = a.getAttribute('data-link');
+    const isCurrent = (link === r) || (r === 'home' && link === 'store' && location.hash === '');
+    a.setAttribute('aria-current', isCurrent ? 'page' : '');
+  });
+}
 
 /* -------------------------------
    렌더러
@@ -326,4 +334,5 @@ function initRowScrolls() {
     window.addEventListener('resize', updateBtns, { passive: true });
   });
 }
+
 
