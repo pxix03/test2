@@ -255,7 +255,7 @@ function mountHeader() {
           }
         </div>
       </div>
-      <div class="inner">
+      <div class="inner nav-line">
         <nav class="site-nav" site-nav--centered">
           <a href="#/esports"    data-link="esports">리그 오브 레전드</a>
           <a href="#/basketball" data-link="basketball">NBA</a>
@@ -276,26 +276,42 @@ function mountHeader() {
   wireSearch();
 }
 function injectHeaderStyles() {
-  if (document.getElementById('headerStylePatch')) return;
-  const css = `
-    .site-nav--centered {
-      display:flex; justify-content:center; gap:28px;
-      font-weight:600; letter-spacing:.1px;
-    }
-    .site-nav--centered a { padding:10px 2px; }
-    /* 기존 스타일이 aria-current에 밑줄을 주더라도 제거 */
-    .site-nav--centered a[aria-current="page"] { border-bottom:none !important; }
-    /* 상단 네비 아래 얇은 구분선(첫 번째 스샷 느낌) */
-    .nav-divider { height:1px; background:rgba(255,255,255,.08); }
-    /* 검색창이 가운데 정렬 느낌 나도록 최상단 레이아웃 보정(옵션) */
-    .header-top { align-items:center; }
-    .header-top .site-search { margin:0 auto; }
-  `;
+  if (document.getElementById('headerCenterPatch')) return;
   const style = document.createElement('style');
-  style.id = 'headerStylePatch';
-  style.textContent = css;
+  style.id = 'headerCenterPatch';
+  style.textContent = `
+    /* 네비 줄을 CSS Grid로 만들어 중앙 슬롯에 고정 */
+    header.site-header .nav-line{
+      display:grid !important;
+      grid-template-columns: 1fr auto 1fr;
+      align-items:center;
+      padding:0; /* 기존 패딩이 치우치게 만들면 제거 */
+    }
+    header.site-header .nav-line .site-nav{
+      grid-column:2; /* 가운데 칸 */
+      justify-self:center;
+      display:inline-flex !important;
+      gap:28px;
+      margin:0;
+    }
+
+    /* 기존 전역 규칙 무력화(정렬/마진/밑줄) */
+    header.site-header .nav-line .site-nav a{
+      margin:0 !important;
+      padding:10px 2px;
+      text-decoration:none;
+      border-bottom:none !important;
+    }
+    header.site-header .nav-line .site-nav a + a{
+      margin-left:0 !important; /* 전역 a+a 간격 제거 */
+    }
+    header.site-header .nav-line .site-nav a[aria-current="page"]{
+      border-bottom:none !important;
+    }
+  `;
   document.head.appendChild(style);
 }
+
 function setActiveNav(){
   const r = routeOnly();
   document.querySelectorAll('.site-nav a').forEach(a => {
@@ -606,5 +622,6 @@ function initRowScrolls() {
     updateBtns(); window.addEventListener('resize',updateBtns,{passive:true});
   });
 }
+
 
 
