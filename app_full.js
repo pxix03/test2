@@ -31,7 +31,6 @@ const fileToRoute = {
 function mountHeader() {
   const cartCount = state.cart.reduce((s, i) => s + (i.qty || 0), 0);
 
-  // styles.css가 기대하는 클래스들로 구성 (site-header / header-top row-compact / site-search / auth-controls / site-nav)
   const html = `
     <header class="site-header">
       <div class="inner header-top row-compact">
@@ -44,37 +43,45 @@ function mountHeader() {
         </form>
 
         <div class="auth-controls">
-          ${state.session
-            ? `<button class="user-chip" disabled>안녕하세요, <b>${state.session.username}</b>님</button>
-               <a class="button ghost" data-link="cart">장바구니 (${cartCount})</a>
-               <button class="button secondary" data-action="logout">로그아웃</button>`
-            : `<a class="button primary" data-link="login">로그인</a>
-               <a class="button ghost" data-link="signup">회원가입</a>`
+          ${
+            state.session
+              // 로그인 상태: 사용자칩 + (로그아웃 옆) 장바구니 표시
+              ? `
+                <button class="user-chip" disabled>
+                  안녕하세요, <b>${state.session.username}</b>님
+                </button>
+                <a class="button ghost" data-link="cart">장바구니 (${cartCount})</a>
+                <button class="button secondary" data-action="logout">로그아웃</button>
+              `
+              // 비로그인: 로그인/회원가입만 (장바구니 없음)
+              : `
+                <a class="button primary" data-link="login">로그인</a>
+                <a class="button ghost" data-link="signup">회원가입</a>
+              `
           }
         </div>
       </div>
 
+      <!-- 내비게이션에는 장바구니를 넣지 않습니다 -->
       <nav class="site-nav inner">
         <a data-link="store">스토어</a>
         <a data-link="news">뉴스</a>
         <a data-link="players">선수</a>
-        <a data-link="cart">장바구니</a>
       </nav>
     </header>
   `;
 
-  // 기존 헤더 자리(#app-header)가 있으면 거기 주입, 없으면 상단에 삽입
   const mount = document.getElementById('app-header');
   if (mount) {
-    mount.outerHTML = html; // mount 자체를 site-header로 대체
+    mount.outerHTML = html;
   } else {
     const exists = document.querySelector('header.site-header');
     if (exists) exists.outerHTML = html;
     else document.body.insertAdjacentHTML('afterbegin', html);
   }
-
-  setActiveNav(); // 현재 라우트 강조
+  setActiveNav(); // 현재 탭 강조 유지
 }
+
 
 function setActiveNav() {
   const r = getRoute(); // 'home' | 'store' | ...
@@ -334,5 +341,6 @@ function initRowScrolls() {
     window.addEventListener('resize', updateBtns, { passive: true });
   });
 }
+
 
 
