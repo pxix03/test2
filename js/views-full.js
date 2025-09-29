@@ -20,7 +20,7 @@ export function View_index() { return `
 </div>
 </section>
 <!-- LoL -->
-<section aria-labelledby="esports-title" class="sport-section" id="esports">
+<section aria-labelledby="esports-title" class="sport-section" id="esports" data-link="esports">
 <div class="inner">
 <div class="section-head">
 <h2 id="esports-title">리그 오브 레전드 스타</h2>
@@ -95,7 +95,7 @@ export function View_index() { return `
 </div>
 </section>
 <!-- NBA -->
-<section aria-labelledby="basketball-title" class="sport-section" id="basketball">
+<section aria-labelledby="basketball-title" class="sport-section" id="basketball" data-link="basketball">
 <div class="inner">
 <div class="section-head">
 <h2 id="basketball-title">NBA 아이콘</h2>
@@ -170,7 +170,7 @@ export function View_index() { return `
 </div>
 </section>
 <!-- EPL -->
-<section aria-labelledby="football-title" class="sport-section" id="football">
+<section aria-labelledby="football-title" class="sport-section" id="football" data-link="football">
 <div class="inner">
 <div class="section-head">
 <h2 id="football-title">EPL 히어로</h2>
@@ -245,7 +245,7 @@ export function View_index() { return `
 </div>
 </section>
 <!-- News -->
-<section aria-labelledby="news-title" class="news" id="news">
+<section aria-labelledby="news-title" class="news" id="news" data-link="news">
 <div class="inner">
 <div class="section-head">
 <h2 id="news-title">ENS 실시간 뉴스픽</h2>
@@ -300,7 +300,7 @@ export function View_index() { return `
 </div>
 </section>
 <!-- Matches -->
-<section aria-labelledby="matches-title" class="matches" id="matches">
+<section aria-labelledby="matches-title" class="matches" id="matches" data-link="matches">
 <div class="inner">
 <div class="section-head">
 <h2 id="matches-title">오늘의 경기 결과 &amp; 하이라이트</h2>
@@ -347,7 +347,7 @@ export function View_index() { return `
 </div>
 </section>
 <!-- Store (상품은 항상 보이도록) -->
-<section aria-labelledby="store-title" class="store" id="store">
+<section aria-labelledby="store-title" class="store" id="store" data-link="store">
 <div class="inner" id="storeWrapper">
 <div class="section-head">
 <h2 id="store-title">ENS 스토어</h2>
@@ -366,7 +366,7 @@ export function View_index() { return `
 <h3>T1 월즈 챔피언 한정판 유니폼</h3>
 <p>2025 월즈 기념 에디션. 주문 제작 배번 각인 가능.</p>
 <span class="price">₩189,000</span>
-<button class="button secondary" type="button">장바구니 추가</button>
+<button class="button secondary" data-role="add-cart" type="button">장바구니 추가</button>
 </div>
 </article>
 <article class="store-card">
@@ -818,10 +818,10 @@ export function View_login() { return `
 <div class="auth-box">
 <h1>로그인</h1>
 <form class="auth-form" id="loginForm">
-<label for="email">이메일</label>
-<input id="email" required="" type="email"/>
-<label for="password">비밀번호</label>
-<input id="password" required="" type="password"/>
+<label for="login-username">아이디</label>
+<input id="login-username" name="username" required type="text" autocomplete="username" />
+<label for="login-password">비밀번호</label>
+<input id="login-password" name="password" required type="password" autocomplete="current-password" />
 <button class="button primary" type="submit">로그인</button>
 </form>
 <p class="link">계정이 없으신가요? <a href="signup.html">회원가입</a></p>
@@ -833,15 +833,14 @@ export function View_signup() { return `
 <div class="auth-box">
 <h1>회원가입</h1>
 <form class="auth-form" id="signupForm">
-<label for="nickname">닉네임</label>
-<input id="nickname" required="" type="text"/>
-<label for="email">이메일</label>
-<input id="email" required="" type="email"/>
-<label for="password">비밀번호</label>
-<input id="password" minlength="6" required="" type="password"/>
+<label for="signup-username">아이디</label>
+<input id="signup-username" name="username" required type="text" autocomplete="username" />
+<label for="signup-password">비밀번호</label>
+<input id="signup-password" name="password" minlength="6" required type="password" autocomplete="new-password" />
 <button class="button primary" type="submit">회원가입</button>
 </form>
 <p class="link">이미 계정이 있으신가요? <a href="login.html">로그인</a></p>
 </div>
 </main>
 `; }
+
