@@ -256,7 +256,7 @@ function mountHeader() {
         </div>
       </div>
       <div class="inner nav-line">
-        <nav class="site-nav" site-nav--centered">
+        <nav class="site-nav site-nav--centered">
           <a href="#/esports"    data-link="esports">리그 오브 레전드</a>
           <a href="#/basketball" data-link="basketball">NBA</a>
           <a href="#/football"   data-link="football">EPL</a>
@@ -622,6 +622,7 @@ function initRowScrolls() {
     updateBtns(); window.addEventListener('resize',updateBtns,{passive:true});
   });
 }
+
 
 
 
