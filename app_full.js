@@ -444,8 +444,7 @@ async function render() {
       case 'cart':       body = View_cart?.() || View_index(); break;
       case 'login':      body = View_login?.() || View_index(); break;
       case 'signup':     body = View_signup?.() || View_index(); break;
-            case 'detail':     body = View_detail?.() || View_index(); break;
-default:           body = View_index(); break;
+      default:           body = View_index(); break;
     }
   }
 
@@ -513,38 +512,6 @@ function enhanceActions() {
 ======================================== */
 const isInteractive = el => !!el.closest('a, button, input, select, textarea, label, [contenteditable], [role="button"], [role="link"]');
 
-
-// ===== 카드 → 상세 (홈 제외; 캡처 단계로 선제 가로채기) =====
-document.addEventListener('click', (e) => {
-  // 버튼/폼/외부링크/장바구니/구매는 통과
-  if (e.target.closest('button,[data-action],.btn,input,select,textarea,label,a[href^="http"]')) return;
-
-  const card = e.target.closest('.card, .product-card, article.product, .category-card, .player-card, .news-card, .match-card, [data-card]');
-  if (!card) return;
-
-  const current = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'home';
-  if (current === 'home') return; // 홈은 기존 동작 유지
-
-  // 카드 안쪽에 #/… 링크가 있더라도 상세 우선으로
-  e.preventDefault();
-  e.stopPropagation();
-
-  const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').replace(/\s+/g,' ').trim();
-  const snap = {
-    id:    card.getAttribute('data-id') || card.getAttribute('data-product-id') || card.id || (textOf(card.querySelector('h3,h4,.title'))||'').toLowerCase().replace(/\s+/g,'-'),
-    type:  card.getAttribute('data-type') || card.getAttribute('data-cat') || card.getAttribute('data-kind') || current,
-    title: textOf(card.querySelector('h1,h2,h3,h4,.title,.card-title')) || '제목 없음',
-    sub:   textOf(card.querySelector('.sub,.subtitle,.meta')),
-    desc:  textOf(card.querySelector('.desc,.excerpt,.summary,p')),
-    badge: textOf(card.querySelector('.badge,.pill')),
-    img:   card.querySelector('img')?.getAttribute('src') || '',
-    price: (card.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'') || ''
-  };
-
-  try { state.detailBack = location.hash || '#/'; state.detail = snap; saveState && saveState(); } catch(_) {}
-  navigate && navigate('detail');
-}, true); // <-- capture:true
-
 /* ========================================
    전역 클릭/폼 위임
 ======================================== */
@@ -555,25 +522,21 @@ document.addEventListener('click', (e) => {
     const href=legacyA.getAttribute('href')||''; const file=href.split('/').pop().toLowerCase(); const route=fileToRoute[file];
     if (route){ e.preventDefault(); navigate(route); return; }
   
-  // 1.5) data-action 우선 처리 (장바구니/구매/로그아웃)
-  const actEarly = e.target.closest('[data-action]');
-  if (actEarly) {
-    const action = actEarly.getAttribute('data-action');
-    const id = actEarly.getAttribute('data-id');
-    if (action === 'logout') { e.preventDefault(); state.session = null; saveState(); render(); return; }
-    if (action === 'add-to-cart' || action === 'buy-now') {
-      e.preventDefault(); e.stopPropagation();
-      if (!state.session) { alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
-      const container = actEarly.closest('[data-id], [data-title], [data-price], article, .card, .product');
-      let pid = id || container?.getAttribute('data-id') || '';
-      let title = actEarly.getAttribute('data-title') || container?.getAttribute('data-title') || container?.querySelector('h3,h4,.title')?.textContent?.trim() || '상품';
-      let price = parseInt(actEarly.getAttribute('data-price') || container?.getAttribute('data-price') || (container?.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'' ) || '0', 10) || 0;
-      let img = container?.getAttribute('data-img') || container?.querySelector('img')?.getAttribute('src') || '';
-      if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
-      const ex = state.cart.find(x=>x.id===pid);
-      if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
-      saveState(); render(); if (action==='buy-now') navigate('cart'); return;
-    }
+  /* add-to-cart early */
+  const addEarly = e.target.closest('[data-action="add-to-cart"], .add-to-cart, [data-add-to-cart], button.add-cart, button[data-role="add-cart"]');
+  if (addEarly) {
+    e.preventDefault(); e.stopPropagation();
+    if (!(state && state.session)) { alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
+    const container = addEarly.closest('[data-id], [data-title], [data-price], article, .card, .product') || document;
+    let pid   = addEarly.getAttribute('data-id') || container.getAttribute?.('data-id') || '';
+    let title = addEarly.getAttribute('data-title') || container.getAttribute?.('data-title') || container.querySelector?.('h3,h4,.title')?.textContent?.trim() || '상품';
+    let price = parseInt(addEarly.getAttribute('data-price') || container.getAttribute?.('data-price') || (container.querySelector?.('.price')?.textContent || '').replace(/[^0-9]/g,'') || '0', 10) || 0;
+    let img   = container.getAttribute?.('data-img') || container.querySelector?.('img')?.getAttribute('src') || '';
+    if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
+    const ex = state.cart.find(x=>x.id===pid);
+    if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
+    saveState(); render();
+    return;
   }
 }
 
@@ -679,66 +642,4 @@ function initRowScrolls() {
 
 
 
-
-
-
-/* ========================================
-   Detail View (공통 상세 페이지)
-======================================== */
-function View_detail() {
-  const d = state.detail;
-  const back = state.detailBack || '#/';
-  if (!d) {
-    return `
-      <main class="detail">
-        <div class="inner">
-          <a class="button ghost" href="${back}" data-link="${back.replace(/^#\/?/,'')}">← 뒤로</a>
-          <h1>상세 데이터를 찾을 수 없습니다</h1>
-          <p>홈으로 돌아가 다시 시도해주세요.</p>
-        </div>
-      </main>
-    `;
-  }
-
-  const priceTag = d.price && !isNaN(+d.price)
-    ? `<div class="price">₩${(+d.price).toLocaleString()}</div>` : '';
-
-  const cartButtons = (d.type === 'store' || d.type === 'product') ? `
-    <div class="actions">
-      <button class="button primary" data-action="add-to-cart" data-id="${d.id}"
-              data-title="${(d.title||'').replace(/"/g,'&quot;')}"
-              ${d.price ? `data-price="${d.price}"` : ''} 
-              ${d.img ? `data-img="${d.img}"` : ''}>
-        장바구니 추가
-      </button>
-      <button class="button" data-action="buy-now" data-id="${d.id}">바로구매</button>
-    </div>
-  ` : '';
-
-  return `
-    <main class="detail">
-      <div class="inner">
-        <div class="detail-head">
-          <a class="button ghost" href="${back}" data-link="${back.replace(/^#\/?/,'')}">← 뒤로</a>
-        </div>
-
-        <article class="detail-card" data-type="${d.type||''}" data-id="${d.id||''}">
-          <div class="media">
-            ${d.img ? `<img src="${d.img}" alt="${(d.title||'상세 이미지')}" />` : ''}
-          </div>
-          <div class="content">
-            <div class="meta">
-              ${d.badge ? `<span class="badge">${d.badge}</span>` : ''}
-              ${d.sub ? `<span class="sub">${d.sub}</span>` : ''}
-            </div>
-            <h1 class="title">${d.title || '제목 없음'}</h1>
-            ${priceTag}
-            <p class="desc">${d.desc || d.text || ''}</p>
-            ${cartButtons}
-          </div>
-        </article>
-      </div>
-    </main>
-  `;
-}
 
