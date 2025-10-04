@@ -1,4 +1,4 @@
-﻿/* =========================
+/* =========================
    Global / Reset
 ========================= */
 
@@ -495,12 +495,38 @@ header.site-header nav.site-nav a {
 header.site-header nav.site-nav a[aria-current="page"] {
   border-bottom: none !important;
 }
+
+
 /* ===== Detail View ===== */
 .detail .inner { max-width: 1080px; margin: 0 auto; padding: 20px; }
-.detail-card { display:grid; grid-template-columns: 1.2fr 1fr; gap:24px; background:var(--card,#333); border-radius:16px; padding:20px; box-shadow: var(--shadow,0 10px 30px rgba(0,0,0,.35)); }
-.detail-card .media img { width:100%; height:auto; border-radius:12px; display:block; }
+.detail-card {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+  background: var(--card, #333);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.35));
+}
+.detail-card .media img { width: 100%; height: auto; border-radius: 12px; display: block; }
 .detail-card .title { font-size: clamp(20px, 2.8vw, 30px); margin: 8px 0 12px; }
 .detail-card .price { font-weight: 700; margin: 4px 0 16px; }
-.detail-card .badge { display:inline-block; padding:4px 8px; border-radius:9999px; background:#444; margin-right:6px; font-size:12px; }
-.detail-card .actions { margin-top: 16px; display:flex; gap:10px; }
-@media (max-width: 900px) { .detail-card { grid-template-columns: 1fr; } }
+.detail-card .badge { display: inline-block; padding: 4px 8px; border-radius: 9999px; background: #444; margin-right: 6px; font-size: 12px; }
+.detail-card .actions { margin-top: 16px; display: flex; gap: 10px; }
+
+@media (max-width: 900px) {
+  .detail-card { grid-template-columns: 1fr; }
+}
+
+
+/* ===== Toast ===== */
+#toastBox {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  left: 50% !important;
+  bottom: 88px !important;
+  transform: translateX(-50%) !important;
+  max-width: 90% !important;
+  pointer-events: none !important;
+}
+#toastBox > div { opacity: 1 !important; }
