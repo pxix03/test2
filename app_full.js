@@ -1,3 +1,35 @@
+
+// --- minimal toast utility ---
+function toast(msg = '', type = 'info') {
+  try {
+    let box = document.getElementById('toastBox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'toastBox';
+      box.style.position = 'fixed';
+      box.style.zIndex = 2147483647;
+      box.style.left = '50%';
+      box.style.bottom = '88px';
+      box.style.transform = 'translateX(-50%)';
+      box.style.maxWidth = '90%';
+      box.style.pointerEvents = 'none';
+      document.body.appendChild(box);
+    }
+    const item = document.createElement('div');
+    item.textContent = msg;
+    item.style.marginTop = '8px';
+    item.style.padding = '12px 16px';
+    item.style.borderRadius = '10px';
+    item.style.boxShadow = '0 6px 20px rgba(0,0,0,.3)';
+    item.style.background = (type==='warn'||type==='error') ? '#ef4444' : '#333';
+    item.style.color = '#fff';
+    item.style.fontSize = '14px';
+    item.style.pointerEvents = 'auto';
+    box.appendChild(item);
+    setTimeout(()=>{ item.style.opacity='0'; item.style.transition='opacity .3s'; }, 1600);
+    setTimeout(()=>{ item.remove(); }, 2100);
+  } catch(_) {}
+}
 // app_full.js — SPA 엔트리 (동적 DATA 로드 + 안전한 검색 인덱스 + 헤더/네비/카드/가로스크롤/가드)
 
 import { state, saveState, $app, sha256 } from './js/state.js';
@@ -499,7 +531,7 @@ function enhanceActions() {
   document.querySelectorAll('[data-add-to-cart], .add-to-cart, button.add-cart, button[data-role="add-cart"]').forEach(btn=>{
     const card=btn.closest('[data-id]')||btn.closest('[data-product-id]');
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
-    if (pid){ btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); if (btn.hasAttribute('data-link')) btn.removeAttribute('data-link'); if (btn.hasAttribute('data-link')) btn.removeAttribute('data-link'); }
+    if (pid){ btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); if (btn.hasAttribute('data-link')) btn.removeAttribute('data-link'); }
   });
   document.querySelectorAll('[data-buy-now], .buy-now, button.buy-now').forEach(btn=>{
     const card=btn.closest('[data-id]')||btn.closest('[data-product-id]');
@@ -512,38 +544,6 @@ function enhanceActions() {
    도우미: 인터랙티브 요소 체크
 ======================================== */
 const isInteractive = el => !!el.closest('a, button, input, select, textarea, label, [contenteditable], [role="button"], [role="link"]');
-
-
-// ===== 카드 → 상세 (홈 제외; 캡처 단계로 선제 가로채기) =====
-document.addEventListener('click', (e) => {
-  // 버튼/폼/외부링크/장바구니/구매는 통과
-  if (e.target.closest('button,[data-action],.btn,input,select,textarea,label,a[href^="http"]')) return;
-
-  const card = e.target.closest('.card, .product-card, article.product, .category-card, .player-card, .news-card, .match-card, [data-card]');
-  if (!card) return;
-
-  const current = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'home';
-  if (current === 'home') return; // 홈은 기존 동작 유지
-
-  // 카드 내부 a[href]보다 먼저 상세로 보냄
-  e.preventDefault();
-  e.stopPropagation();
-
-  const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').replace(/\s+/g,' ').trim();
-  const snap = {
-    id:    card.getAttribute('data-id') || card.getAttribute('data-product-id') || card.id || (textOf(card.querySelector('h3,h4,.title'))||'').toLowerCase().replace(/\s+/g,'-'),
-    type:  card.getAttribute('data-type') || card.getAttribute('data-cat') || card.getAttribute('data-kind') || current,
-    title: textOf(card.querySelector('h1,h2,h3,h4,.title,.card-title')) || '제목 없음',
-    sub:   textOf(card.querySelector('.sub,.subtitle,.meta')),
-    desc:  textOf(card.querySelector('.desc,.excerpt,.summary,p')),
-    badge: textOf(card.querySelector('.badge,.pill')),
-    img:   card.querySelector('img')?.getAttribute('src') || '',
-    price: (card.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'') || ''
-  };
-
-  try { state.detailBack = location.hash || '#/'; state.detail = snap; saveState && saveState(); } catch(_) {}
-  navigate && navigate('detail');
-}, true); // capture:true
 
 
 // ===== 카드 → 상세 (홈 제외; 캡처 단계로 선제 가로채기) =====
@@ -587,14 +587,15 @@ document.addEventListener('click', (e) => {
     if (route){ e.preventDefault(); navigate(route); return; }
   
   /* add-to-cart early */
-  const addEarly = e.target.closest('[data-action="add-to-cart"], .add-to-cart, [data-add-to-cart], button.add-cart, button[data-role="add-cart"]');
+  const addEarly = e.target.closest('[data-action="add-to-cart"], .add-to-cart, [data-add-to-cart], button.add-cart, button[data-role="add-cart"], a.add-cart');
   const buyEarly = e.target.closest('[data-action="buy-now"], .buy-now, [data-buy-now], .go-checkout, [data-action="checkout"]');
   const actEarly = addEarly || buyEarly;
   if (actEarly) {
     e.preventDefault(); e.stopPropagation();
     if (!(state && state.session)) {
       try { state.redirectAfterLogin = location.hash || '#/store'; saveState && saveState(); } catch(_) {}
-      alert('로그인 후 이용 가능합니다.'); navigate('login'); return;
+      if (typeof toast === 'function') toast('로그인 후 이용 가능합니다','warn'); else alert('로그인 후 이용 가능합니다.');
+      navigate && navigate('login'); return;
     }
     const container = actEarly.closest('[data-id], [data-title], [data-price], article, .card, .product') || document;
     let pid   = actEarly.getAttribute('data-id') || container.getAttribute?.('data-id') || '';
@@ -605,7 +606,8 @@ document.addEventListener('click', (e) => {
     const ex = state.cart.find(x=>x.id===pid);
     if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
     saveState(); render();
-    if (buyEarly) { navigate('cart'); }
+    if (typeof toast === 'function') toast(`장바구니에 담았습니다: ${title}`);
+    if (buyEarly) navigate('cart');
     return;
   }
 }
@@ -709,7 +711,6 @@ function initRowScrolls() {
     updateBtns(); window.addEventListener('resize',updateBtns,{passive:true});
   });
 }
-
 
 
 
