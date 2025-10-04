@@ -662,3 +662,17 @@ function initRowScrolls() {
 
 
 
+
+
+// clickable-card helper
+try {
+  const style = document.createElement('style');
+  style.textContent = `
+  /* clickable card cursor */
+  .card[data-link], [data-link].card, .news-card[data-link], [data-card][data-link] { cursor: pointer; }
+  /* allow buttons to still work inside a clickable card */
+  [data-link] button, [data-link] .btn, [data-link] [data-action] { pointer-events: auto; }
+  `;
+  document.head.appendChild(style);
+} catch (e) {}
+
