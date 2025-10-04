@@ -1,36 +1,3 @@
-
-// --- minimal toast utility ---
-function toast(msg = '', type = 'info') {
-  try {
-    let box = document.getElementById('toastBox');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'toastBox';
-      box.style.position = 'fixed';
-      box.style.zIndex = 9999;
-      box.style.left = '50%';
-      box.style.bottom = '24px';
-      box.style.transform = 'translateX(-50%)';
-      box.style.maxWidth = '90%';
-      box.style.pointerEvents = 'none';
-      document.body.appendChild(box);
-    }
-    const item = document.createElement('div');
-    item.textContent = msg;
-    item.style.marginTop = '8px';
-    item.style.padding = '12px 16px';
-    item.style.borderRadius = '10px';
-    item.style.boxShadow = '0 6px 20px rgba(0,0,0,.3)';
-    item.style.background = (type==='warn'||type==='error') ? '#ef4444' : '#333';
-    item.style.color = '#fff';
-    item.style.fontSize = '14px';
-    item.style.pointerEvents = 'auto';
-    box.appendChild(item);
-    setTimeout(()=>{ item.style.opacity='0'; item.style.transition='opacity .3s'; }, 1600);
-    setTimeout(()=>{ item.remove(); }, 2100);
-  } catch(_) {}
-}
-
 // app_full.js — SPA 엔트리 (동적 DATA 로드 + 안전한 검색 인덱스 + 헤더/네비/카드/가로스크롤/가드)
 
 import { state, saveState, $app, sha256 } from './js/state.js';
@@ -477,22 +444,14 @@ async function render() {
       case 'cart':       body = View_cart?.() || View_index(); break;
       case 'login':      body = View_login?.() || View_index(); break;
       case 'signup':     body = View_signup?.() || View_index(); break;
-      default:           body = View_index(); break;
+            case 'detail':     body = View_detail?.() || View_index(); break;
+default:           body = View_index(); break;
     }
   }
 
   $app().innerHTML = body;
 
-  // 스토어 락 배너 토글: 로그인 시 숨김, 미로그인 시 표시
-  try {
-    const path = (location.hash||'#').replace(/^#\/?/, '').split('?')[0];
-    if (path === 'store') {
-      const locked = document.getElementById('storeLocked');
-      if (locked) locked.hidden = !!(state && state.session);
-    }
-  } catch (e) { /* no-op */ }
-
-patchLegacyLinks();   // *.html → #/route 변환
+  patchLegacyLinks();   // *.html → #/route 변환
   enhanceActions();     // 원본 버튼/링크 → SPA 표준 속성 부여
   mountHeader();        // 헤더 주입 + 중앙정렬
   initRowScrolls();     // 가로 스크롤 초기화
@@ -502,7 +461,6 @@ patchLegacyLinks();   // *.html → #/route 변환
     document.querySelectorAll(
       '.card, .product-card, article.product, .category-card, .player-card, .news-card, .match-card'
     ).forEach(card => {
-      if (card.getAttribute('data-link')) return;
       const route = mapHomeCardToRoute(card);
       if (route) card.setAttribute('data-link', route);
     });
@@ -531,24 +489,6 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 ======================================== */
 function enhanceActions() {
-  // --- Force NEWS context: any cards inside a 'news-like' container or on the News route go to #/news ---
-  try {
-    const path = (location.hash||'#').replace(/^#\/?/, '').split('?')[0];
-    const isRouteNews = path === 'news';
-    const sections = Array.from(document.querySelectorAll('section, .section, [data-section]'));
-    sections.forEach(sec=>{
-      const heading = sec.querySelector('h1, h2, h3, .section-title, .title, .header');
-      const headText = (heading?.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-      const meta = ((sec.id||'') + ' ' + (sec.className||'') + ' ' + (sec.getAttribute('data-section')||'') + ' ' + (sec.getAttribute('data-cat')||'')).toLowerCase();
-      const looksNews = /news|뉴스|뉴스픽|실시간\s*뉴스/.test(headText) || /news|뉴스/.test(meta) || isRouteNews;
-      if (looksNews) {
-        sec.querySelectorAll('.card, [data-card]').forEach(card=>{
-          card.setAttribute('data-link', 'news');
-        });
-      }
-    });
-  } catch (e) { /* no-op */ }
-
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el=>el.setAttribute('data-link','store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el=>el.setAttribute('data-link','cart'));
   document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el=>el.setAttribute('data-link','login'));
@@ -561,33 +501,6 @@ function enhanceActions() {
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
     if (pid){ btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); }
   });
-
-
-  // 2) 스토어 카드의 일반 버튼(텍스트/구조 기반)도 자동 와이어링
-  document.querySelectorAll('.store-card .button, .store-card button, .store-card .btn').forEach(btn=>{
-    if (btn.getAttribute('data-action')) return; // 이미 설정된 경우 제외
-    const label = (btn.textContent||'').trim();
-    if (!/장바구니\s*추가/i.test(label)) return;
-    const card = btn.closest('.store-card, [data-product-id], [data-id]');
-    if (!card) return;
-    const pid   = (card.getAttribute('data-id') || card.getAttribute('data-product-id') || '').trim();
-    const title = card.getAttribute('data-title')
-                || card.querySelector('h3, h4, .title')?.textContent?.trim()
-                || '상품';
-    const price = card.getAttribute('data-price')
-                || (card.querySelector('.price')?.textContent||'').replace(/[^0-9]/g,'');
-    const img   = card.getAttribute('data-img')
-                || card.querySelector('img')?.getAttribute('src') || '';
-    if (pid) {
-      btn.setAttribute('data-action','add-to-cart');
-      btn.setAttribute('data-id', pid);
-      if (title) btn.setAttribute('data-title', title);
-      if (price) btn.setAttribute('data-price', price);
-      if (img)   btn.setAttribute('data-img', img);
-    }
-  });
-
-
   document.querySelectorAll('[data-buy-now], .buy-now, button.buy-now').forEach(btn=>{
     const card=btn.closest('[data-id]')||btn.closest('[data-product-id]');
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
@@ -611,7 +524,36 @@ document.addEventListener('click', (e) => {
     if (route){ e.preventDefault(); navigate(route); return; }
   }
 
-  // 2) data-link 라우팅
+  
+  // 2) 카드 → 상세 페이지 (홈 제외)
+  const cardForDetail = e.target.closest('.card, [data-card]');
+  if (cardForDetail) {
+    const path = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'index';
+    if (path !== 'index') {
+      // 버튼/폼/링크는 통과
+      if (!e.target.closest('button,[data-action],.btn,input,select,textarea,label,a[href^="http"],a[href^="#"]')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').replace(/\s+/g,' ').trim();
+        const snap = {
+          id:    cardForDetail.getAttribute('data-id') || cardForDetail.getAttribute('data-product-id') || cardForDetail.id || (textOf(cardForDetail.querySelector('h3,h4,.title'))||'').toLowerCase().replace(/\s+/g,'-'),
+          type:  cardForDetail.getAttribute('data-type') || cardForDetail.getAttribute('data-cat') || cardForDetail.getAttribute('data-kind') || path,
+          title: textOf(cardForDetail.querySelector('h1,h2,h3,h4,.title,.card-title')) || '제목 없음',
+          sub:   textOf(cardForDetail.querySelector('.sub,.subtitle,.meta')),
+          desc:  textOf(cardForDetail.querySelector('.desc,.excerpt,.summary,p')),
+          badge: textOf(cardForDetail.querySelector('.badge,.pill')),
+          img:   cardForDetail.querySelector('img')?.getAttribute('src') || '',
+          price: (cardForDetail.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'') || ''
+        };
+        try { state.detailBack = location.hash || '#/'; state.detail = snap; saveState && saveState(); } catch(_) {}
+        navigate && navigate('detail');
+        return;
+      }
+    }
+  }
+
+  // 3) data-link 라우팅
+
   const link = e.target.closest('[data-link]');
   if (link) {
     e.preventDefault();
@@ -716,15 +658,63 @@ function initRowScrolls() {
 
 
 
-// clickable-card helper
-try {
-  const style = document.createElement('style');
-  style.textContent = `
-  /* clickable card cursor */
-  .card[data-link], [data-link].card, .news-card[data-link], [data-card][data-link] { cursor: pointer; }
-  /* allow buttons to still work inside a clickable card */
-  [data-link] button, [data-link] .btn, [data-link] [data-action] { pointer-events: auto; }
+/* ========================================
+   Detail View (공통 상세 페이지)
+======================================== */
+function View_detail() {
+  const d = state.detail;
+  const back = state.detailBack || '#/';
+  if (!d) {
+    return `
+      <main class="detail">
+        <div class="inner">
+          <a class="button ghost" href="${back}" data-link="${back.replace(/^#\/?/,'')}">← 뒤로</a>
+          <h1>상세 데이터를 찾을 수 없습니다</h1>
+          <p>홈으로 돌아가 다시 시도해주세요.</p>
+        </div>
+      </main>
+    `;
+  }
+
+  const priceTag = d.price && !isNaN(+d.price)
+    ? `<div class="price">₩${(+d.price).toLocaleString()}</div>` : '';
+
+  const cartButtons = (d.type === 'store' || d.type === 'product') ? `
+    <div class="actions">
+      <button class="button primary" data-action="add-to-cart" data-id="${d.id}"
+              data-title="${(d.title||'').replace(/"/g,'&quot;')}"
+              ${d.price ? `data-price="${d.price}"` : ''} 
+              ${d.img ? `data-img="${d.img}"` : ''}>
+        장바구니 추가
+      </button>
+      <button class="button" data-action="buy-now" data-id="${d.id}">바로구매</button>
+    </div>
+  ` : '';
+
+  return `
+    <main class="detail">
+      <div class="inner">
+        <div class="detail-head">
+          <a class="button ghost" href="${back}" data-link="${back.replace(/^#\/?/,'')}">← 뒤로</a>
+        </div>
+
+        <article class="detail-card" data-type="${d.type||''}" data-id="${d.id||''}">
+          <div class="media">
+            ${d.img ? `<img src="${d.img}" alt="${(d.title||'상세 이미지')}" />` : ''}
+          </div>
+          <div class="content">
+            <div class="meta">
+              ${d.badge ? `<span class="badge">${d.badge}</span>` : ''}
+              ${d.sub ? `<span class="sub">${d.sub}</span>` : ''}
+            </div>
+            <h1 class="title">${d.title || '제목 없음'}</h1>
+            ${priceTag}
+            <p class="desc">${d.desc || d.text || ''}</p>
+            ${cartButtons}
+          </div>
+        </article>
+      </div>
+    </main>
   `;
-  document.head.appendChild(style);
-} catch (e) {}
+}
 
