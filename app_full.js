@@ -1,3 +1,36 @@
+
+// --- minimal toast utility ---
+function toast(msg = '', type = 'info') {
+  try {
+    let box = document.getElementById('toastBox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'toastBox';
+      box.style.position = 'fixed';
+      box.style.zIndex = 9999;
+      box.style.left = '50%';
+      box.style.bottom = '24px';
+      box.style.transform = 'translateX(-50%)';
+      box.style.maxWidth = '90%';
+      box.style.pointerEvents = 'none';
+      document.body.appendChild(box);
+    }
+    const item = document.createElement('div');
+    item.textContent = msg;
+    item.style.marginTop = '8px';
+    item.style.padding = '12px 16px';
+    item.style.borderRadius = '10px';
+    item.style.boxShadow = '0 6px 20px rgba(0,0,0,.3)';
+    item.style.background = (type==='warn'||type==='error') ? '#ef4444' : '#333';
+    item.style.color = '#fff';
+    item.style.fontSize = '14px';
+    item.style.pointerEvents = 'auto';
+    box.appendChild(item);
+    setTimeout(()=>{ item.style.opacity='0'; item.style.transition='opacity .3s'; }, 1600);
+    setTimeout(()=>{ item.remove(); }, 2100);
+  } catch(_) {}
+}
+
 // app_full.js — SPA 엔트리 (동적 DATA 로드 + 안전한 검색 인덱스 + 헤더/네비/카드/가로스크롤/가드)
 
 import { state, saveState, $app, sha256 } from './js/state.js';
@@ -40,107 +73,29 @@ function parseHashQuery() {
 }
 
 /* ========================================
-   홈 카드 → 카테고리 자동 매핑 유틸 (개선판)
+   홈 카드 → 카테고리 자동 매핑 유틸
 ======================================== */
 const KWD_TO_ROUTE = [
-  { kws: ['뉴스','news'],                                        route: 'news' },        // ← 뉴스 우선
   { kws: ['e스포츠','esports','e-sports','e sport','faker','t1'], route: 'esports' },
   { kws: ['농구','basketball','nba','lebron','curry'],           route: 'basketball' },
   { kws: ['축구','football','soccer','epl','손흥민','son'],       route: 'football' },
+  { kws: ['뉴스','news'],                                        route: 'news' },
   { kws: ['경기','일정','matches','schedule','fixtures'],        route: 'matches' },
   { kws: ['스토어','store','쇼핑','shop'],                       route: 'store' },
 ];
-
-const textOf = el =>
-  (el?.textContent || el?.getAttribute?.('aria-label') || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-
-// 라우트 문자열 정규화 (#/news → news)
-const normalizeRoute = r => (r ? r.replace(/^#\/?/, '') : r);
-
-// 뉴스 컨텍스트(뉴스 섹션/뉴스 제목 등) 여부 판정 — ★강화판
-function __isNewsContainer(el) {
-  if (!el) return false;
-
-  // 현재 페이지가 뉴스면 페이지 전체를 뉴스 컨텍스트로 간주
-  const route = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'index';
-  if (route === 'news') return true;
-
-  // 카드 자신의 '뉴스' 표식
-  if (el.matches?.('.news-card, [data-kind="news"], [data-cat="news"]')) return true;
-
-  // 가까운 컨테이너들
-  const sec =
-    el.closest?.('[data-section], .section, section, .row-shell, .row-scroll, .cards, .grid, main') || document;
-
-  // 메타(아이디/클래스/데이터속성)에 news/뉴스 포함?
-  const meta = [
-    sec?.id || '',
-    sec?.className || '',
-    sec?.getAttribute?.('data-section') || '',
-    sec?.getAttribute?.('data-cat') || '',
-    sec?.getAttribute?.('data-kind') || '',
-  ]
-    .join(' ')
-    .toLowerCase();
-  if (/news|뉴스|news\-pick|news_pick/.test(meta)) return true;
-
-  // 섹션 헤더 텍스트 판정 (ENS 실시간 뉴스픽 등)
-  const getHeadText = root => {
-    const h =
-      root?.querySelector?.('h1,h2,h3,.section-title,.title,.header,.section-head h2');
-    return (h?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-  };
-
-  const headTextSelf = getHeadText(sec);
-  const headTextPrev = getHeadText(sec?.previousElementSibling);
-  const headTextParent = getHeadText(sec?.parentElement);
-
-  const looksNews = t =>
-    /ens\s*실시간\s*뉴스픽|뉴스|news/.test(t || '');
-
-  if (looksNews(headTextSelf) || looksNews(headTextPrev) || looksNews(headTextParent)) return true;
-
-  return false;
-}
-
-// 키워드 → 라우트 매핑
-function guessRouteFromText(s = '') {
-  const t = String(s).toLowerCase();
-  for (const { kws, route } of KWD_TO_ROUTE) {
-    if (kws.some(k => t.includes(k))) return route;
-  }
-  return null;
-}
-
-// 카드 → 라우트 결정 (뉴스 컨텍스트 최우선)
-function mapHomeCardToRoute(card) {
-  // 1) 뉴스 컨텍스트면 무조건 뉴스
-  if (__isNewsContainer(card)) return 'news';
-
-  // 2) 카드 자체가 명시한 링크/카테고리 우선
-  const explicitRaw = card.getAttribute('data-link') || card.getAttribute('data-category');
-  const explicit = normalizeRoute(explicitRaw);
+const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').trim().toLowerCase();
+function guessRouteFromText(s=''){ const t=s.toLowerCase(); for(const {kws,route} of KWD_TO_ROUTE){ if(kws.some(k=>t.includes(k))) return route; } return null; }
+function mapHomeCardToRoute(card){
+  const explicit = card.getAttribute('data-link') || card.getAttribute('data-category');
   if (explicit && explicit !== 'home') return explicit;
-
-  // 3) 텍스트로 추정
   const titleEl = card.querySelector('h1,h2,h3,h4,.title,.card-title');
-  const sectionTitle = card
-    .closest('section,.section,.row-shell,.row-scroll,.cards,.grid')
-    ?.querySelector('h2,h3,.section-title');
+  const sectionTitle = card.closest('section,.section,.row-shell')?.querySelector('h2,h3,.section-title');
   const imgAlt = card.querySelector('img')?.getAttribute('alt') || '';
-
-  return (
-    guessRouteFromText(textOf(card)) ||
-    guessRouteFromText(textOf(titleEl)) ||
-    guessRouteFromText(textOf(sectionTitle)) ||
-    guessRouteFromText(imgAlt) ||
-    null
-  );
+  return guessRouteFromText(textOf(card)) ||
+         guessRouteFromText(textOf(titleEl)) ||
+         guessRouteFromText(textOf(sectionTitle)) ||
+         guessRouteFromText(imgAlt) || null;
 }
-
 
 /* ========================================
    동적 DATA 로드 + 검색 인덱스 (DATA/레거시/마크업 흡수)
@@ -528,7 +483,16 @@ async function render() {
 
   $app().innerHTML = body;
 
-  patchLegacyLinks();   // *.html → #/route 변환
+  // 스토어 락 배너 토글: 로그인 시 숨김, 미로그인 시 표시
+  try {
+    const path = (location.hash||'#').replace(/^#\/?/, '').split('?')[0];
+    if (path === 'store') {
+      const locked = document.getElementById('storeLocked');
+      if (locked) locked.hidden = !!(state && state.session);
+    }
+  } catch (e) { /* no-op */ }
+
+patchLegacyLinks();   // *.html → #/route 변환
   enhanceActions();     // 원본 버튼/링크 → SPA 표준 속성 부여
   mountHeader();        // 헤더 주입 + 중앙정렬
   initRowScrolls();     // 가로 스크롤 초기화
@@ -567,6 +531,24 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 ======================================== */
 function enhanceActions() {
+  // --- Force NEWS context: any cards inside a 'news-like' container or on the News route go to #/news ---
+  try {
+    const path = (location.hash||'#').replace(/^#\/?/, '').split('?')[0];
+    const isRouteNews = path === 'news';
+    const sections = Array.from(document.querySelectorAll('section, .section, [data-section]'));
+    sections.forEach(sec=>{
+      const heading = sec.querySelector('h1, h2, h3, .section-title, .title, .header');
+      const headText = (heading?.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      const meta = ((sec.id||'') + ' ' + (sec.className||'') + ' ' + (sec.getAttribute('data-section')||'') + ' ' + (sec.getAttribute('data-cat')||'')).toLowerCase();
+      const looksNews = /news|뉴스|뉴스픽|실시간\s*뉴스/.test(headText) || /news|뉴스/.test(meta) || isRouteNews;
+      if (looksNews) {
+        sec.querySelectorAll('.card, [data-card]').forEach(card=>{
+          card.setAttribute('data-link', 'news');
+        });
+      }
+    });
+  } catch (e) { /* no-op */ }
+
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el=>el.setAttribute('data-link','store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el=>el.setAttribute('data-link','cart'));
   document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el=>el.setAttribute('data-link','login'));
@@ -579,6 +561,33 @@ function enhanceActions() {
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
     if (pid){ btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); }
   });
+
+
+  // 2) 스토어 카드의 일반 버튼(텍스트/구조 기반)도 자동 와이어링
+  document.querySelectorAll('.store-card .button, .store-card button, .store-card .btn').forEach(btn=>{
+    if (btn.getAttribute('data-action')) return; // 이미 설정된 경우 제외
+    const label = (btn.textContent||'').trim();
+    if (!/장바구니\s*추가/i.test(label)) return;
+    const card = btn.closest('.store-card, [data-product-id], [data-id]');
+    if (!card) return;
+    const pid   = (card.getAttribute('data-id') || card.getAttribute('data-product-id') || '').trim();
+    const title = card.getAttribute('data-title')
+                || card.querySelector('h3, h4, .title')?.textContent?.trim()
+                || '상품';
+    const price = card.getAttribute('data-price')
+                || (card.querySelector('.price')?.textContent||'').replace(/[^0-9]/g,'');
+    const img   = card.getAttribute('data-img')
+                || card.querySelector('img')?.getAttribute('src') || '';
+    if (pid) {
+      btn.setAttribute('data-action','add-to-cart');
+      btn.setAttribute('data-id', pid);
+      if (title) btn.setAttribute('data-title', title);
+      if (price) btn.setAttribute('data-price', price);
+      if (img)   btn.setAttribute('data-img', img);
+    }
+  });
+
+
   document.querySelectorAll('[data-buy-now], .buy-now, button.buy-now').forEach(btn=>{
     const card=btn.closest('[data-id]')||btn.closest('[data-product-id]');
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
@@ -705,4 +714,17 @@ function initRowScrolls() {
 
 
 
+
+
+// clickable-card helper
+try {
+  const style = document.createElement('style');
+  style.textContent = `
+  /* clickable card cursor */
+  .card[data-link], [data-link].card, .news-card[data-link], [data-card][data-link] { cursor: pointer; }
+  /* allow buttons to still work inside a clickable card */
+  [data-link] button, [data-link] .btn, [data-link] [data-action] { pointer-events: auto; }
+  `;
+  document.head.appendChild(style);
+} catch (e) {}
 
