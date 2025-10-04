@@ -449,6 +449,11 @@ async function render() {
   }
 
   $app().innerHTML = body;
+  // 스토어 락 배너 토글: 로그인 여부에 따라 표시/숨김
+  if (typeof routeOnly === 'function' && routeOnly() === 'store') {
+    const locked = document.getElementById('storeLocked');
+    if (locked) locked.hidden = !!state.session;
+  }
 
   patchLegacyLinks();   // *.html → #/route 변환
   enhanceActions();     // 원본 버튼/링크 → SPA 표준 속성 부여
