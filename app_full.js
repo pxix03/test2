@@ -449,13 +449,17 @@ async function render() {
   }
 
   $app().innerHTML = body;
-  // 스토어 락 배너 토글: 로그인 여부에 따라 표시/숨김
-  if (typeof routeOnly === 'function' && routeOnly() === 'store') {
-    const locked = document.getElementById('storeLocked');
-    if (locked) locked.hidden = !!state.session;
-  }
 
-  patchLegacyLinks();   // *.html → #/route 변환
+  // 스토어 락 배너 토글: 로그인 시 숨김, 미로그인 시 표시
+  try {
+    const path = (location.hash||'#').replace(/^#\/?/, '').split('?')[0];
+    if (path === 'store') {
+      const locked = document.getElementById('storeLocked');
+      if (locked) locked.hidden = !!(state && state.session);
+    }
+  } catch (e) { /* no-op */ }
+
+patchLegacyLinks();   // *.html → #/route 변환
   enhanceActions();     // 원본 버튼/링크 → SPA 표준 속성 부여
   mountHeader();        // 헤더 주입 + 중앙정렬
   initRowScrolls();     // 가로 스크롤 초기화
@@ -505,6 +509,33 @@ function enhanceActions() {
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
     if (pid){ btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); }
   });
+
+
+  // 2) 스토어 카드의 일반 버튼(텍스트/구조 기반)도 자동 와이어링
+  document.querySelectorAll('.store-card .button, .store-card button, .store-card .btn').forEach(btn=>{
+    if (btn.getAttribute('data-action')) return; // 이미 설정된 경우 제외
+    const label = (btn.textContent||'').trim();
+    if (!/장바구니\s*추가/i.test(label)) return;
+    const card = btn.closest('.store-card, [data-product-id], [data-id]');
+    if (!card) return;
+    const pid   = (card.getAttribute('data-id') || card.getAttribute('data-product-id') || '').trim();
+    const title = card.getAttribute('data-title')
+                || card.querySelector('h3, h4, .title')?.textContent?.trim()
+                || '상품';
+    const price = card.getAttribute('data-price')
+                || (card.querySelector('.price')?.textContent||'').replace(/[^0-9]/g,'');
+    const img   = card.getAttribute('data-img')
+                || card.querySelector('img')?.getAttribute('src') || '';
+    if (pid) {
+      btn.setAttribute('data-action','add-to-cart');
+      btn.setAttribute('data-id', pid);
+      if (title) btn.setAttribute('data-title', title);
+      if (price) btn.setAttribute('data-price', price);
+      if (img)   btn.setAttribute('data-img', img);
+    }
+  });
+
+
   document.querySelectorAll('[data-buy-now], .buy-now, button.buy-now').forEach(btn=>{
     const card=btn.closest('[data-id]')||btn.closest('[data-product-id]');
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
