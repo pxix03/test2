@@ -40,49 +40,107 @@ function parseHashQuery() {
 }
 
 /* ========================================
-   홈 카드 → 카테고리 자동 매핑 유틸
+   홈 카드 → 카테고리 자동 매핑 유틸 (개선판)
 ======================================== */
 const KWD_TO_ROUTE = [
+  { kws: ['뉴스','news'],                                        route: 'news' },        // ← 뉴스 우선
   { kws: ['e스포츠','esports','e-sports','e sport','faker','t1'], route: 'esports' },
   { kws: ['농구','basketball','nba','lebron','curry'],           route: 'basketball' },
   { kws: ['축구','football','soccer','epl','손흥민','son'],       route: 'football' },
-  { kws: ['뉴스','news'],                                        route: 'news' },
   { kws: ['경기','일정','matches','schedule','fixtures'],        route: 'matches' },
   { kws: ['스토어','store','쇼핑','shop'],                       route: 'store' },
 ];
-const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').trim().toLowerCase();
 
-// 뉴스 컨텍스트(뉴스 섹션/뉴스 제목 등) 여부 판정
-function __isNewsContainer(el){
+const textOf = el =>
+  (el?.textContent || el?.getAttribute?.('aria-label') || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+// 라우트 문자열 정규화 (#/news → news)
+const normalizeRoute = r => (r ? r.replace(/^#\/?/, '') : r);
+
+// 뉴스 컨텍스트(뉴스 섹션/뉴스 제목 등) 여부 판정 — ★강화판
+function __isNewsContainer(el) {
   if (!el) return false;
-  const sec = el.closest('section, .section, [data-section], #news, .news');
-  if (!sec) return false;
+
+  // 현재 페이지가 뉴스면 페이지 전체를 뉴스 컨텍스트로 간주
+  const route = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'index';
+  if (route === 'news') return true;
+
+  // 카드 자신의 '뉴스' 표식
+  if (el.matches?.('.news-card, [data-kind="news"], [data-cat="news"]')) return true;
+
+  // 가까운 컨테이너들
+  const sec =
+    el.closest?.('[data-section], .section, section, .row-shell, .row-scroll, .cards, .grid, main') || document;
+
+  // 메타(아이디/클래스/데이터속성)에 news/뉴스 포함?
   const meta = [
-    sec.id || '',
-    sec.className || '',
-    sec.getAttribute && (sec.getAttribute('data-section') || ''),
-    sec.getAttribute && (sec.getAttribute('data-cat') || ''),
-    sec.getAttribute && (sec.getAttribute('data-link') || '')
-  ].join(' ').toLowerCase();
-  if (/news|\uB274\uC2A4/.test(meta)) return true; // '뉴스'
-  const head = sec.querySelector && sec.querySelector('h1,h2,h3,.section-title,.title,.header');
-  const headText = (head && (head.textContent || '')).toLowerCase();
-  if (/ens\s*\uC2E4\uC2DC\uAC04\s*\uB274\uC2A4\uD53D|news|\uB274\uC2A4/.test(headText)) return true;
+    sec?.id || '',
+    sec?.className || '',
+    sec?.getAttribute?.('data-section') || '',
+    sec?.getAttribute?.('data-cat') || '',
+    sec?.getAttribute?.('data-kind') || '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  if (/news|뉴스|news\-pick|news_pick/.test(meta)) return true;
+
+  // 섹션 헤더 텍스트 판정 (ENS 실시간 뉴스픽 등)
+  const getHeadText = root => {
+    const h =
+      root?.querySelector?.('h1,h2,h3,.section-title,.title,.header,.section-head h2');
+    return (h?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  };
+
+  const headTextSelf = getHeadText(sec);
+  const headTextPrev = getHeadText(sec?.previousElementSibling);
+  const headTextParent = getHeadText(sec?.parentElement);
+
+  const looksNews = t =>
+    /ens\s*실시간\s*뉴스픽|뉴스|news/.test(t || '');
+
+  if (looksNews(headTextSelf) || looksNews(headTextPrev) || looksNews(headTextParent)) return true;
+
   return false;
 }
-function guessRouteFromText(s=''){ const t=s.toLowerCase(); for(const {kws,route} of KWD_TO_ROUTE){ if(kws.some(k=>t.includes(k))) return route; } return null; }
-function mapHomeCardToRoute(card){
-  if (__isNewsContainer(card)) return 'news';
-  const explicit = card.getAttribute('data-link') || card.getAttribute('data-category');
-  if (explicit && explicit !== 'home') return explicit;
-  const titleEl = card.querySelector('h1,h2,h3,h4,.title,.card-title');
-  const sectionTitle = card.closest('section,.section,.row-shell')?.querySelector('h2,h3,.section-title');
-  const imgAlt = card.querySelector('img')?.getAttribute('alt') || '';
-  return guessRouteFromText(textOf(card)) ||
-         guessRouteFromText(textOf(titleEl)) ||
-         guessRouteFromText(textOf(sectionTitle)) ||
-         guessRouteFromText(imgAlt) || null;
+
+// 키워드 → 라우트 매핑
+function guessRouteFromText(s = '') {
+  const t = String(s).toLowerCase();
+  for (const { kws, route } of KWD_TO_ROUTE) {
+    if (kws.some(k => t.includes(k))) return route;
+  }
+  return null;
 }
+
+// 카드 → 라우트 결정 (뉴스 컨텍스트 최우선)
+function mapHomeCardToRoute(card) {
+  // 1) 뉴스 컨텍스트면 무조건 뉴스
+  if (__isNewsContainer(card)) return 'news';
+
+  // 2) 카드 자체가 명시한 링크/카테고리 우선
+  const explicitRaw = card.getAttribute('data-link') || card.getAttribute('data-category');
+  const explicit = normalizeRoute(explicitRaw);
+  if (explicit && explicit !== 'home') return explicit;
+
+  // 3) 텍스트로 추정
+  const titleEl = card.querySelector('h1,h2,h3,h4,.title,.card-title');
+  const sectionTitle = card
+    .closest('section,.section,.row-shell,.row-scroll,.cards,.grid')
+    ?.querySelector('h2,h3,.section-title');
+  const imgAlt = card.querySelector('img')?.getAttribute('alt') || '';
+
+  return (
+    guessRouteFromText(textOf(card)) ||
+    guessRouteFromText(textOf(titleEl)) ||
+    guessRouteFromText(textOf(sectionTitle)) ||
+    guessRouteFromText(imgAlt) ||
+    null
+  );
+}
+
 
 /* ========================================
    동적 DATA 로드 + 검색 인덱스 (DATA/레거시/마크업 흡수)
@@ -643,6 +701,7 @@ function initRowScrolls() {
     updateBtns(); window.addEventListener('resize',updateBtns,{passive:true});
   });
 }
+
 
 
 
