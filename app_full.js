@@ -513,6 +513,38 @@ function enhanceActions() {
 ======================================== */
 const isInteractive = el => !!el.closest('a, button, input, select, textarea, label, [contenteditable], [role="button"], [role="link"]');
 
+
+// ===== 카드 → 상세 (홈 제외; 캡처 단계로 선제 가로채기) =====
+document.addEventListener('click', (e) => {
+  // 버튼/폼/외부링크/장바구니/구매는 통과
+  if (e.target.closest('button,[data-action],.btn,input,select,textarea,label,a[href^="http"]')) return;
+
+  const card = e.target.closest('.card, .product-card, article.product, .category-card, .player-card, .news-card, .match-card, [data-card]');
+  if (!card) return;
+
+  const current = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'home';
+  if (current === 'home') return; // 홈은 기존 동작 유지
+
+  // 카드 안쪽에 #/… 링크가 있더라도 상세 우선으로
+  e.preventDefault();
+  e.stopPropagation();
+
+  const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').replace(/\s+/g,' ').trim();
+  const snap = {
+    id:    card.getAttribute('data-id') || card.getAttribute('data-product-id') || card.id || (textOf(card.querySelector('h3,h4,.title'))||'').toLowerCase().replace(/\s+/g,'-'),
+    type:  card.getAttribute('data-type') || card.getAttribute('data-cat') || card.getAttribute('data-kind') || current,
+    title: textOf(card.querySelector('h1,h2,h3,h4,.title,.card-title')) || '제목 없음',
+    sub:   textOf(card.querySelector('.sub,.subtitle,.meta')),
+    desc:  textOf(card.querySelector('.desc,.excerpt,.summary,p')),
+    badge: textOf(card.querySelector('.badge,.pill')),
+    img:   card.querySelector('img')?.getAttribute('src') || '',
+    price: (card.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'') || ''
+  };
+
+  try { state.detailBack = location.hash || '#/'; state.detail = snap; saveState && saveState(); } catch(_) {}
+  navigate && navigate('detail');
+}, true); // <-- capture:true
+
 /* ========================================
    전역 클릭/폼 위임
 ======================================== */
@@ -524,36 +556,7 @@ document.addEventListener('click', (e) => {
     if (route){ e.preventDefault(); navigate(route); return; }
   }
 
-  
-  // 2) 카드 → 상세 페이지 (홈 제외)
-  const cardForDetail = e.target.closest('.card, [data-card]');
-  if (cardForDetail) {
-    const path = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'index';
-    if (path !== 'index') {
-      // 버튼/폼/링크는 통과
-      if (!e.target.closest('button,[data-action],.btn,input,select,textarea,label,a[href^="http"],a[href^="#"]')) {
-        e.preventDefault();
-        e.stopPropagation();
-        const textOf = el => (el?.textContent || el?.getAttribute?.('aria-label') || '').replace(/\s+/g,' ').trim();
-        const snap = {
-          id:    cardForDetail.getAttribute('data-id') || cardForDetail.getAttribute('data-product-id') || cardForDetail.id || (textOf(cardForDetail.querySelector('h3,h4,.title'))||'').toLowerCase().replace(/\s+/g,'-'),
-          type:  cardForDetail.getAttribute('data-type') || cardForDetail.getAttribute('data-cat') || cardForDetail.getAttribute('data-kind') || path,
-          title: textOf(cardForDetail.querySelector('h1,h2,h3,h4,.title,.card-title')) || '제목 없음',
-          sub:   textOf(cardForDetail.querySelector('.sub,.subtitle,.meta')),
-          desc:  textOf(cardForDetail.querySelector('.desc,.excerpt,.summary,p')),
-          badge: textOf(cardForDetail.querySelector('.badge,.pill')),
-          img:   cardForDetail.querySelector('img')?.getAttribute('src') || '',
-          price: (cardForDetail.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'') || ''
-        };
-        try { state.detailBack = location.hash || '#/'; state.detail = snap; saveState && saveState(); } catch(_) {}
-        navigate && navigate('detail');
-        return;
-      }
-    }
-  }
-
-  // 3) data-link 라우팅
-
+  // 2) data-link 라우팅
   const link = e.target.closest('[data-link]');
   if (link) {
     e.preventDefault();
