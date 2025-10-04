@@ -525,6 +525,7 @@ document.addEventListener('click', (e) => {
   const current = (location.hash || '#').replace(/^#\/?/, '').split('?')[0] || 'home';
   if (current === 'home') return; // 홈은 기존 동작 유지
 
+  // 카드 내부 a[href]보다 먼저 상세로 보냄
   e.preventDefault();
   e.stopPropagation();
 
@@ -556,18 +557,24 @@ document.addEventListener('click', (e) => {
   
   /* add-to-cart early */
   const addEarly = e.target.closest('[data-action="add-to-cart"], .add-to-cart, [data-add-to-cart], button.add-cart, button[data-role="add-cart"]');
-  if (addEarly) {
+  const buyEarly = e.target.closest('[data-action="buy-now"], .buy-now, [data-buy-now], .go-checkout, [data-action="checkout"]');
+  const actEarly = addEarly || buyEarly;
+  if (actEarly) {
     e.preventDefault(); e.stopPropagation();
-    if (!(state && state.session)) { alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
-    const container = addEarly.closest('[data-id], [data-title], [data-price], article, .card, .product') || document;
-    let pid   = addEarly.getAttribute('data-id') || container.getAttribute?.('data-id') || '';
-    let title = addEarly.getAttribute('data-title') || container.getAttribute?.('data-title') || container.querySelector?.('h3,h4,.title')?.textContent?.trim() || '상품';
-    let price = parseInt(addEarly.getAttribute('data-price') || container.getAttribute?.('data-price') || (container.querySelector?.('.price')?.textContent || '').replace(/[^0-9]/g,'') || '0', 10) || 0;
+    if (!(state && state.session)) {
+      try { state.redirectAfterLogin = location.hash || '#/store'; saveState && saveState(); } catch(_) {}
+      alert('로그인 후 이용 가능합니다.'); navigate('login'); return;
+    }
+    const container = actEarly.closest('[data-id], [data-title], [data-price], article, .card, .product') || document;
+    let pid   = actEarly.getAttribute('data-id') || container.getAttribute?.('data-id') || '';
+    let title = actEarly.getAttribute('data-title') || container.getAttribute?.('data-title') || container.querySelector?.('h3,h4,.title')?.textContent?.trim() || '상품';
+    let price = parseInt(actEarly.getAttribute('data-price') || container.getAttribute?.('data-price') || (container.querySelector?.('.price')?.textContent || '').replace(/[^0-9]/g,'') || '0', 10) || 0;
     let img   = container.getAttribute?.('data-img') || container.querySelector?.('img')?.getAttribute('src') || '';
     if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
     const ex = state.cart.find(x=>x.id===pid);
     if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
     saveState(); render();
+    if (buyEarly) { navigate('cart'); }
     return;
   }
 }
@@ -633,7 +640,7 @@ document.addEventListener('submit', async (e)=>{
     const user=state.users.find(u=>u.username===username);
     const passOk=user && (await sha256(password))===user.passHash;
     if (!passOk){ alert('아이디 또는 비밀번호가 올바르지 않습니다.'); return; }
-    state.session={ username }; saveState(); navigate('home'); render();
+    state.session={ username }; saveState(); const back = state.redirectAfterLogin || 'home'; delete state.redirectAfterLogin; navigate(back.replace(/^#\/?/, '')); render(); // post-login redirect
   }
   if (form.id==='signupForm'){
     e.preventDefault();
@@ -719,7 +726,7 @@ function View_detail() {
 
         <article class="detail-card" data-type="${d.type||''}" data-id="${d.id||''}">
           <div class="media">
-            ${d.img ? `<img src="${(d.img) }" alt="${(d.title||'상세 이미지')}" />` : ''}
+            ${d.img ? `<img src="${d.img}" alt="${(d.title||'상세 이미지')}" />` : ''}
           </div>
           <div class="content">
             <div class="meta">
