@@ -469,6 +469,7 @@ patchLegacyLinks();   // *.html → #/route 변환
     document.querySelectorAll(
       '.card, .product-card, article.product, .category-card, .player-card, .news-card, .match-card'
     ).forEach(card => {
+      if (card.getAttribute('data-link')) return;
       const route = mapHomeCardToRoute(card);
       if (route) card.setAttribute('data-link', route);
     });
@@ -509,7 +510,7 @@ function enhanceActions() {
       const looksNews = /news|뉴스|뉴스픽|실시간\s*뉴스/.test(headText) || /news|뉴스/.test(meta) || isRouteNews;
       if (looksNews) {
         sec.querySelectorAll('.card, [data-card]').forEach(card=>{
-          card.setAttribute('data-link', '#/news');
+          card.setAttribute('data-link', 'news');
         });
       }
     });
