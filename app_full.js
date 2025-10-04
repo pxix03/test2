@@ -497,6 +497,20 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 ======================================== */
 function enhanceActions() {
+  // --- Home: Force "ENS 실시간 뉴스픽" section cards to #/news ---
+  try {
+    const sections = Array.from(document.querySelectorAll('section, .section, [data-section]'));
+    sections.forEach(sec=>{
+      const heading = sec.querySelector('h2, h3, .section-title, .title');
+      const text = (heading?.textContent||'').replace(/\s+/g,' ').trim();
+      if (/ENS\s*실시간\s*뉴스픽/i.test(text)) {
+        sec.querySelectorAll('.card, [data-card]').forEach(card=>{
+          card.setAttribute('data-link', '#/news');
+        });
+      }
+    });
+  } catch (e) { /* no-op */ }
+
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el=>el.setAttribute('data-link','store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el=>el.setAttribute('data-link','cart'));
   document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el=>el.setAttribute('data-link','login'));
