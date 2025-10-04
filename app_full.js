@@ -497,13 +497,17 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 ======================================== */
 function enhanceActions() {
-  // --- Home: Force "ENS 실시간 뉴스픽" section cards to #/news ---
+  // --- Force NEWS context: any cards inside a 'news-like' container or on the News route go to #/news ---
   try {
+    const path = (location.hash||'#').replace(/^#\/?/, '').split('?')[0];
+    const isRouteNews = path === 'news';
     const sections = Array.from(document.querySelectorAll('section, .section, [data-section]'));
     sections.forEach(sec=>{
-      const heading = sec.querySelector('h2, h3, .section-title, .title');
-      const text = (heading?.textContent||'').replace(/\s+/g,' ').trim();
-      if (/ENS\s*실시간\s*뉴스픽/i.test(text)) {
+      const heading = sec.querySelector('h1, h2, h3, .section-title, .title, .header');
+      const headText = (heading?.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      const meta = ((sec.id||'') + ' ' + (sec.className||'') + ' ' + (sec.getAttribute('data-section')||'') + ' ' + (sec.getAttribute('data-cat')||'')).toLowerCase();
+      const looksNews = /news|뉴스|뉴스픽|실시간\s*뉴스/.test(headText) || /news|뉴스/.test(meta) || isRouteNews;
+      if (looksNews) {
         sec.querySelectorAll('.card, [data-card]').forEach(card=>{
           card.setAttribute('data-link', '#/news');
         });
