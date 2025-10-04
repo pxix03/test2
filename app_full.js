@@ -499,7 +499,7 @@ function enhanceActions() {
   document.querySelectorAll('[data-add-to-cart], .add-to-cart, button.add-cart, button[data-role="add-cart"]').forEach(btn=>{
     const card=btn.closest('[data-id]')||btn.closest('[data-product-id]');
     const pid=(card?.getAttribute('data-id')||card?.getAttribute('data-product-id')||'').trim();
-    if (pid){ btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); }
+    if (pid){ btn.setAttribute('data-action','add-to-cart'); btn.setAttribute('data-id', pid); if (btn.hasAttribute('data-link')) btn.removeAttribute('data-link'); }
   });
   document.querySelectorAll('[data-buy-now], .buy-now, button.buy-now').forEach(btn=>{
     const card=btn.closest('[data-id]')||btn.closest('[data-product-id]');
@@ -554,7 +554,28 @@ document.addEventListener('click', (e) => {
   if (legacyA) {
     const href=legacyA.getAttribute('href')||''; const file=href.split('/').pop().toLowerCase(); const route=fileToRoute[file];
     if (route){ e.preventDefault(); navigate(route); return; }
+  
+  // 1.5) data-action 우선 처리 (장바구니/구매/로그아웃)
+  const actEarly = e.target.closest('[data-action]');
+  if (actEarly) {
+    const action = actEarly.getAttribute('data-action');
+    const id = actEarly.getAttribute('data-id');
+    if (action === 'logout') { e.preventDefault(); state.session = null; saveState(); render(); return; }
+    if (action === 'add-to-cart' || action === 'buy-now') {
+      e.preventDefault(); e.stopPropagation();
+      if (!state.session) { alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
+      const container = actEarly.closest('[data-id], [data-title], [data-price], article, .card, .product');
+      let pid = id || container?.getAttribute('data-id') || '';
+      let title = actEarly.getAttribute('data-title') || container?.getAttribute('data-title') || container?.querySelector('h3,h4,.title')?.textContent?.trim() || '상품';
+      let price = parseInt(actEarly.getAttribute('data-price') || container?.getAttribute('data-price') || (container?.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'' ) || '0', 10) || 0;
+      let img = container?.getAttribute('data-img') || container?.querySelector('img')?.getAttribute('src') || '';
+      if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
+      const ex = state.cart.find(x=>x.id===pid);
+      if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
+      saveState(); render(); if (action==='buy-now') navigate('cart'); return;
+    }
   }
+}
 
   // 2) data-link 라우팅
   const link = e.target.closest('[data-link]');
