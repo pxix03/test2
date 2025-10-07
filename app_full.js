@@ -468,27 +468,11 @@ async function render() {
 try { installRowScrollClickGuard(); } catch(_) {}
 
 
-// [ADD] Store-only sidebar + login banner toggle + header var update + drag guard
 try {
-  if (typeof updateHeaderHeightVar === 'function') updateHeaderHeightVar();
   const r = (typeof routeOnly === 'function') ? routeOnly() : (location.hash||'').replace(/^#\/?/, '').split('?')[0] || 'home';
-  if (r === 'store' || document.getElementById('storeLocked')) {
-    const locked = document.getElementById('storeLocked');
-    const isLoggedIn = !!(state && state.session);
-    if (locked) locked.hidden = isLoggedIn;
-    document.querySelectorAll('.store-card button[data-action="add-to-cart"]').forEach(b => {
-      b.disabled = !isLoggedIn;
-      b.setAttribute('aria-disabled', String(!isLoggedIn));
-      b.title = isLoggedIn ? '' : '로그인 후 이용 가능';
-    });
-  }
   if (r === 'store') {
     ensureStoreCartSidebar();
     renderStoreCartSidebar();
-    if (window.__openStoreCartAfterNav) {
-      document.getElementById('storeCartSide')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      window.__openStoreCartAfterNav = false;
-    }
   }
 } catch(_) {}
 
@@ -560,9 +544,17 @@ const isInteractive = el => !!el.closest('a, button, input, select, textarea, la
 /* ========================================
    전역 클릭/폼 위임
 ======================================== */
-document.addEventListener('click', (e) => {
-  
-  // [ADD] suppress clicks right after horizontal drag
+
+// [ADD] Home: suppress section area clicks; only cards navigate
+try {
+  const isHome = (typeof routeOnly === 'function') ? (routeOnly() === 'home') : ((location.hash||'') === '' || (location.hash||'') === '#/home' || (location.hash||'') === '#');
+  if (isHome) {
+    const withinSection = e.target.closest('section[data-link], .sport-section[data-link]');
+    const withinCard = e.target.closest('.card, .product-card, article.product, .player-card, .news-card, .match-card, .store-card, .cart-card');
+    if (withinSection && !withinCard) { e.preventDefault(); e.stopPropagation(); return; }
+  }
+} catch(_) {}
+// [ADD] suppress clicks right after horizontal drag
   try {
     const row = e.target.closest('.row-scroll');
     if (row && (window.__rowScrollDragging || (window.__rowScrollJustDragged && Date.now() - window.__rowScrollJustDragged < 300))) {
@@ -625,22 +617,14 @@ document.addEventListener('click', (e) => {
     if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
     const ex = state.cart.find(x=>x.id===pid);
     if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
-    saveState(); render();
-    try {
-      if (typeof routeOnly==='function' && routeOnly()==='store') {
-        ensureStoreCartSidebar(); renderStoreCartSidebar();
-        document.getElementById('storeCartSide')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        return;
-      }
-    } catch(_) {}
-    if (action==='buy-now') navigate('cart'); return;
+    saveState(); render(); if (action==='buy-now') navigate('cart'); return;
   }
 
   if (action === 'qty-inc'){ const it=state.cart.find(x=>x.id===id); if (it) it.qty++; saveState(); render(); return; }
   if (action === 'qty-dec'){ const it=state.cart.find(x=>x.id===id); if (it && it.qty>1) it.qty--; saveState(); render(); return; }
   if (action === 'remove'){ state.cart=state.cart.filter(x=>x.id!==id); saveState(); render(); return; }
   if (action === 'checkout'){ alert('결제가 완료되었습니다. (데모)'); state.cart=[]; saveState(); render(); return; }
-});
+
 
 document.addEventListener('submit', async (e)=>{
   const form=e.target;
@@ -807,7 +791,7 @@ function renderStoreCartSidebar(){
 }
 
 
-/* Header height var utilities */
+/* Header height var utilities (ADD) */
 function updateHeaderHeightVar(){
   try {
     const hd = document.querySelector('header');
