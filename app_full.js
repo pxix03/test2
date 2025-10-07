@@ -465,14 +465,13 @@ async function render() {
     });
   }
 
+try { installRowScrollClickGuard(); } catch(_) {}
 
-// [PATCH] store-only cart sidebar + login/banner toggles + header var update
+
+// [ADD] Store-only sidebar + login banner toggle + header var update + drag guard
 try {
-  // header overlap management
   if (typeof updateHeaderHeightVar === 'function') updateHeaderHeightVar();
-
   const r = (typeof routeOnly === 'function') ? routeOnly() : (location.hash||'').replace(/^#\/?/, '').split('?')[0] || 'home';
-
   if (r === 'store' || document.getElementById('storeLocked')) {
     const locked = document.getElementById('storeLocked');
     const isLoggedIn = !!(state && state.session);
@@ -483,7 +482,6 @@ try {
       b.title = isLoggedIn ? '' : '로그인 후 이용 가능';
     });
   }
-
   if (r === 'store') {
     ensureStoreCartSidebar();
     renderStoreCartSidebar();
@@ -492,7 +490,7 @@ try {
       window.__openStoreCartAfterNav = false;
     }
   }
-} catch(_){}
+} catch(_) {}
 
 
 try { attachHeaderHeightWatchers(); } catch(_) {}
@@ -520,14 +518,12 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 ======================================== */
 function enhanceActions() {
-  // [PATCH] store-card 내부 버튼을 add-to-cart로 태깅하고, 카드 dataset을 버튼으로 복사
+  // [ADD] store-card 내부 버튼 자동 태깅 + 카드 dataset 복사
   try {
     document.querySelectorAll('.store-card').forEach(card => {
       const btns = card.querySelectorAll('button');
       btns.forEach(btn => {
-        if (!btn.hasAttribute('data-action')) {
-          btn.setAttribute('data-action', 'add-to-cart');
-        }
+        if (!btn.hasAttribute('data-action')) btn.setAttribute('data-action', 'add-to-cart');
         const { id, title, price, img } = card.dataset || {};
         if (id)    btn.setAttribute('data-id', id);
         if (title) btn.setAttribute('data-title', title);
@@ -565,7 +561,15 @@ const isInteractive = el => !!el.closest('a, button, input, select, textarea, la
    전역 클릭/폼 위임
 ======================================== */
 document.addEventListener('click', (e) => {
-  // 1) 레거시 a[href="*.html"] → SPA 라우팅
+  
+  // [ADD] suppress clicks right after horizontal drag
+  try {
+    const row = e.target.closest('.row-scroll');
+    if (row && (window.__rowScrollDragging || (window.__rowScrollJustDragged && Date.now() - window.__rowScrollJustDragged < 300))) {
+      e.preventDefault(); e.stopPropagation(); return;
+    }
+  } catch(_) {}
+// 1) 레거시 a[href="*.html"] → SPA 라우팅
   const legacyA = e.target.closest('a[href$=".html"]');
   if (legacyA) {
     const href=legacyA.getAttribute('href')||''; const file=href.split('/').pop().toLowerCase(); const route=fileToRoute[file];
@@ -581,9 +585,7 @@ document.addEventListener('click', (e) => {
     
     if (to === 'cart') {
       if (!state.session) { alert('장바구니는 로그인 후 이용 가능합니다.'); navigate('login'); return; }
-      navigate('store'); 
-      window.__openStoreCartAfterNav = true;
-      return;
+      navigate('store'); window.__openStoreCartAfterNav = true; return;
     }
     navigate(to); return;
   }
@@ -626,12 +628,11 @@ document.addEventListener('click', (e) => {
     saveState(); render();
     try {
       if (typeof routeOnly==='function' && routeOnly()==='store') {
-        ensureStoreCartSidebar();
-        renderStoreCartSidebar();
+        ensureStoreCartSidebar(); renderStoreCartSidebar();
         document.getElementById('storeCartSide')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return;
       }
-    } catch(_){}
+    } catch(_) {}
     if (action==='buy-now') navigate('cart'); return;
   }
 
@@ -694,6 +695,34 @@ function initRowScrolls() {
 
 
 /* ========================================
+   Row-Scroll Click Guard (prevent nav on drag)
+======================================== */
+function installRowScrollClickGuard(){
+  try {
+    document.querySelectorAll('.row-scroll').forEach(row => {
+      if (row.__guardInstalled) return;
+      row.__guardInstalled = true;
+      let sx = null, sy = null, moved = false;
+      const down = (ev) => { sx = ev.clientX; sy = ev.clientY; moved = false; window.__rowScrollDragging = false; };
+      const move = (ev) => {
+        if (sx == null) return;
+        const dx = Math.abs(ev.clientX - sx);
+        if (dx > 6) { moved = true; window.__rowScrollDragging = true; }
+      };
+      const end = () => {
+        if (moved) window.__rowScrollJustDragged = Date.now();
+        window.__rowScrollDragging = false; sx = null; sy = null; moved = false;
+      };
+      row.addEventListener('pointerdown', down, { passive: true });
+      row.addEventListener('pointermove', move, { passive: true });
+      row.addEventListener('pointerup', end, { passive: true });
+      row.addEventListener('pointercancel', end, { passive: true });
+    });
+  } catch(_) {}
+}
+
+
+/* ========================================
    Store Cart Sidebar (right column on store route only)
 ======================================== */
 function ensureStoreCartSidebar(){
@@ -726,9 +755,8 @@ function ensureStoreCartSidebar(){
     </div>
   `;
 
-  // Move existing children into left column
   const nodes = Array.from(wrap.childNodes);
-  nodes.forEach(n => { if (n) left.appendChild(n); });
+  nodes.forEach(n => left.appendChild(n));
   container.appendChild(left); container.appendChild(right);
   wrap.appendChild(container);
 
@@ -778,6 +806,7 @@ function renderStoreCartSidebar(){
   if (btnEl) btnEl.disabled = !cart.length;
 }
 
+
 /* Header height var utilities */
 function updateHeaderHeightVar(){
   try {
@@ -786,7 +815,6 @@ function updateHeaderHeightVar(){
     document.documentElement.style.setProperty('--header-h', h + 'px');
   } catch(_){}
 }
-
 function attachHeaderHeightWatchers(){
   try {
     updateHeaderHeightVar();
