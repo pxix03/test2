@@ -512,7 +512,7 @@ header.site-header nav.site-nav a[aria-current="page"] {
 .cart-side{
   position: sticky;
   top: 84px; /* header height approx */
-  background: #fff;
+  background: #000000;
   border: 1px solid #eee;
   border-radius: 14px;
   box-shadow: 0 6px 18px rgba(0,0,0,.06);
