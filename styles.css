@@ -606,15 +606,6 @@ header.site-header nav.site-nav a[aria-current="page"] {
 .player-card img,
 .store-card img,
 .cart-card img{
-  max-height: calc(180px * var(--card-scale, .5));
   width: auto;
   height: auto;
-}
-
-/* If there are title/text classes, scale them too (safe no-ops if missing) */
-.news-card .title, .player-card .title, .store-card .title, .cart-card .title { 
-  font-size: calc(1.125rem * var(--card-scale, .5));
-}
-.news-card .subtitle, .player-card .subtitle { 
-  font-size: calc(.875rem * var(--card-scale, .5));
 }
