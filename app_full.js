@@ -464,6 +464,27 @@ async function render() {
       if (route) card.setAttribute('data-link', route);
     });
   }
+
+
+// [PATCH] 스토어 잠금 안내 토글 + 비로그인 시 장바구니 버튼 비활성
+try {
+  const getRouteOnly = () => {
+    if (typeof routeOnly === 'function') return routeOnly();
+    const raw = (location.hash || '').replace(/^#/, '');
+    return (raw.split('?')[0] || 'index');
+  };
+  const isStore = getRouteOnly() === 'store';
+  if (isStore || document.getElementById('storeLocked')) {
+    const locked = document.getElementById('storeLocked');
+    const isLoggedIn = !!(typeof state !== 'undefined' && state && state.session);
+    if (locked) locked.hidden = isLoggedIn;
+    document.querySelectorAll('.store-card button[data-action="add-to-cart"]').forEach(b => {
+      b.disabled = !isLoggedIn;
+      b.setAttribute('aria-disabled', String(!isLoggedIn));
+      b.title = isLoggedIn ? '' : '로그인 후 이용 가능';
+    });
+  }
+} catch (_) {}
 }
 onRouteChange(() => { render(); });
 
@@ -488,6 +509,24 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 ======================================== */
 function enhanceActions() {
+
+// [PATCH] store-card 내부 버튼을 add-to-cart로 태깅하고, 카드 dataset 속성을 버튼으로 복사
+try {
+  document.querySelectorAll('.store-card').forEach(card => {
+    const btns = card.querySelectorAll('button');
+    btns.forEach(btn => {
+      if (!btn.hasAttribute('data-action')) {
+        btn.setAttribute('data-action', 'add-to-cart');
+      }
+      const { id, title, price, img } = card.dataset || {};
+      if (id)    btn.setAttribute('data-id', id);
+      if (title) btn.setAttribute('data-title', title);
+      if (price) btn.setAttribute('data-price', price);
+      if (img)   btn.setAttribute('data-img', img);
+    });
+  });
+} catch (e) { /* noop */ }
+
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el=>el.setAttribute('data-link','store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el=>el.setAttribute('data-link','cart'));
   document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el=>el.setAttribute('data-link','login'));
