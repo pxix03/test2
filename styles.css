@@ -544,15 +544,15 @@ header.site-header nav.site-nav a[aria-current="page"] {
 .store-card button[disabled]{ opacity: .6; cursor: not-allowed; }
 
 /* === v11 CSS override: Cart background unify (override only) === */
-:root { --page-bg: #050a1e; } /* Set this to your site's global page background */
-.cart-page { background: var(--page-bg, #050a1e); }
+:root { --page-bg: #fafafa; } /* Set this to your site's global page background */
+.cart-page { background: var(--page-bg, #fafafa); }
 .cart-summary, .cart-card {
-  background: var(--page-bg, #050a1e) !important;
+  background: var(--page-bg, #fafafa) !important;
   border-color: rgba(0,0,0,.06) !important;
 }
 /* Store right cart sidebar (if present in v11) */
 .cart-side {
-  background: var(--page-bg, #050a1e) !important;
+  background: var(--page-bg, #fafafa) !important;
   border-color: rgba(0,0,0,.06);
   box-shadow: 0 6px 18px rgba(0,0,0,.04);
 }
@@ -561,4 +561,60 @@ header.site-header nav.site-nav a[aria-current="page"] {
 @media (prefers-color-scheme: dark) {
   :root { --page-bg: #0e0f12; }
   .cart-side { border-color: rgba(255,255,255,.08); box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+}
+
+/* === v11 OVERRIDE: Global 50% downsizing for all cards === */
+:root {
+  --card-scale: .5;
+}
+
+/* Grid cards: halve the min size and gaps so more cards fit per row */
+.card-grid{
+  gap: calc(28px * var(--card-scale, .5));
+  grid-template-columns: repeat(auto-fit, minmax(calc(260px * var(--card-scale, .5)), 1fr));
+}
+
+/* Horizontal carousels: halve gaps/paddings and typical item min-width */
+.row-scroll{
+  gap: calc(18px * var(--card-scale, .5));
+  padding: calc(10px * var(--card-scale, .5)) calc(16px * var(--card-scale, .5));
+}
+.row-scroll > .news-card,
+.row-scroll > .player-card,
+.row-scroll > .store-card,
+.row-scroll > .cart-card{
+  min-width: calc(260px * var(--card-scale, .5));
+}
+
+/* Common card containers: shrink padding, gaps, and font-size */
+.news-card,
+.player-card,
+.store-card,
+.cart-card{
+  font-size: calc(1rem * var(--card-scale, .5));
+  padding: calc(16px * var(--card-scale, .5));
+  gap: calc(16px * var(--card-scale, .5));
+}
+
+/* Specific structural tweaks */
+.cart-card{
+  grid-template-columns: calc(96px * var(--card-scale, .5)) 1fr auto;
+}
+
+/* (Optional) images inside cards – constrain heights so visuals scale down as well */
+.news-card img,
+.player-card img,
+.store-card img,
+.cart-card img{
+  max-height: calc(180px * var(--card-scale, .5));
+  width: auto;
+  height: auto;
+}
+
+/* If there are title/text classes, scale them too (safe no-ops if missing) */
+.news-card .title, .player-card .title, .store-card .title, .cart-card .title { 
+  font-size: calc(1.125rem * var(--card-scale, .5));
+}
+.news-card .subtitle, .player-card .subtitle { 
+  font-size: calc(.875rem * var(--card-scale, .5));
 }
