@@ -562,7 +562,20 @@ try {
     e.preventDefault(); e.stopPropagation(); return;
   }
 } catch(_) {}
-//Home: suppress section area clicks; only cards navigate
+// Home: suppress section area clicks; only cards navigate
+
+  // Search button / link -> include input value as q
+  try {
+    const searchTrigger = e.target.closest('#siteSearchBtn, [data-link="search"]');
+    if (searchTrigger) {
+      e.preventDefault();
+      const val = (document.getElementById('siteSearchInput')?.value || '').trim();
+      navigate(`search?q=${encodeURIComponent(val)}`);
+      render();
+      return;
+    }
+  } catch(_){}
+
 try {
   const isHome = (typeof routeOnly === 'function') ? (routeOnly() === 'home') : ((location.hash||'') === '' || (location.hash||'') === '#/home' || (location.hash||'') === '#');
   if (isHome) {
@@ -657,6 +670,11 @@ if (action === 'checkout'){ alert('결제가 완료되었습니다. (데모)'); 
 
 document.addEventListener('submit', async (e)=>{
   const form=e.target;
+  if (form.id==='siteSearchForm'){
+    e.preventDefault();
+    const kw = (form.querySelector('#siteSearchInput')?.value || '').trim();
+    navigate(`search?q=${encodeURIComponent(kw)}`); render(); return;
+  }
   if (form.id==='loginForm'){
     e.preventDefault();
     const fd=new FormData(form); const username=(fd.get('username')||'').trim(); const password=fd.get('password')||'';
@@ -841,3 +859,4 @@ function attachHeaderHeightWatchers(){
     }
   } catch(_){}
 }
+try { ensureSearchIndex(false); } catch(_) {}
