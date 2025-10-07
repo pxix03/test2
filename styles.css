@@ -518,7 +518,7 @@ header.site-header nav.site-nav a[aria-current="page"] {
   box-shadow: 0 6px 18px rgba(0,0,0,.06);
   overflow: hidden;
 }
-.cart-side__head{ padding: 14px 16px; border-bottom: 1px solid #eee; background: #fafafa; }
+.cart-side__head{ padding: 14px 16px; border-bottom: 1px solid #eee; background: #000000; }
 .cart-side__head h3{ margin: 0; font-size: 18px; }
 
 .cart-side__body{ max-height: 48vh; overflow:auto; padding: 8px 12px; }
