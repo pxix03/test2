@@ -586,6 +586,15 @@ header.site-header nav.site-nav a[aria-current="page"] {
   min-width: calc(260px * var(--card-scale, .5));
 }
 
+/* Common card containers: shrink padding, gaps, and font-size */
+.news-card,
+.player-card,
+.store-card,
+.cart-card{
+  padding: calc(16px * var(--card-scale, .5));
+  gap: calc(16px * var(--card-scale, .5));
+}
+
 /* Specific structural tweaks */
 .cart-card{
   grid-template-columns: calc(96px * var(--card-scale, .5)) 1fr auto;
