@@ -464,10 +464,6 @@ async function render() {
       if (route) card.setAttribute('data-link', route);
     });
   }
-
-// keep header height var fresh
-try { updateHeaderHeightVar(); } catch(_) {}
-
 }
 onRouteChange(() => { render(); });
 
@@ -632,11 +628,26 @@ function initRowScrolls() {
 
 
 
-// [PATCH] update header height CSS variable to avoid overlap with sticky cart-side
+// [ALL-IN PATCH] header height CSS var utilities
 function updateHeaderHeightVar(){
   try {
     const hd = document.querySelector('header');
     const h = hd ? Math.max(56, hd.getBoundingClientRect().height) : 72;
     document.documentElement.style.setProperty('--header-h', h + 'px');
+  } catch(_){}
+}
+function attachHeaderHeightWatchers(){
+  try {
+    updateHeaderHeightVar();
+    let _t;
+    const onResizeOrScroll = () => { cancelAnimationFrame(_t); _t = requestAnimationFrame(updateHeaderHeightVar); };
+    window.addEventListener('resize', onResizeOrScroll, { passive: true });
+    window.addEventListener('scroll', onResizeOrScroll, { passive: true });
+    // Observe header mutations (class changes) to recalc height
+    const hd = document.querySelector('header');
+    if (hd && window.MutationObserver){
+      const mo = new MutationObserver(onResizeOrScroll);
+      mo.observe(hd, { attributes: true, attributeFilter: ['class','style'] });
+    }
   } catch(_){}
 }
