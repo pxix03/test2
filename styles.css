@@ -533,7 +533,7 @@ header.site-header nav.site-nav a[aria-current="page"] {
 .cart-side__foot .summary-row{ display:flex; align-items:center; justify-content:space-between; }
 .cart-side__foot .summary-row.total strong{ font-size: 18px; }
 
-/* 20% downsizing for cards (ADD without removing existing rules) */
+/* 20% downsizing vars (ADD) */
 :root{ --card-grid-min: 208px; --card-grid-gap: 22px; --row-scroll-gap: 14px; }
 .card-grid{ gap: var(--card-grid-gap); }
 .card-grid{ grid-template-columns: repeat(auto-fit, minmax(var(--card-grid-min), 1fr)); }
