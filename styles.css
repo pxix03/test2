@@ -542,3 +542,34 @@ header.site-header nav.site-nav a[aria-current="page"] {
 /* Drag UX + disabled button (ADD) */
 .row-scroll.dragging { cursor: grabbing; user-select: none; -webkit-user-select: none; -ms-user-select: none; }
 .store-card button[disabled]{ opacity: .6; cursor: not-allowed; }
+/* === Cart sidebar background unify (override only) === */
+/* 페이지 전역 배경과 통일: 전역이 변수면 그걸, 아니면 기본값(#fafafa) 사용 */
+:root {
+  /* 사이트에서 이미 --page-bg 같은 변수를 쓰고 있다면 이 줄은 생략 가능 */
+  --page-bg: #fafafa; /* 필요에 맞게 바꾸세요 (#fff, #f7f7f7 등) */
+}
+
+/* 장바구니 사이드바 전체를 페이지 배경과 통일 */
+.cart-side {
+  background: var(--page-bg, #fafafa) !important;
+  border-color: rgba(0,0,0,.06);
+  box-shadow: 0 6px 18px rgba(0,0,0,.04); /* 기존보다 살짝 낮춘 그림자(페이지 스타일과 맞춤) */
+}
+
+/* 헤더/바디/푸터도 같은 톤으로 맞춤 */
+.cart-side__head,
+.cart-side__body,
+.cart-side__foot {
+  background: inherit !important;
+}
+
+/* 아이템 카드가 완전 흰색이면 둔탁해 보일 수 있어 옅은 톤으로 살짝 통일(선택) */
+.sc-item {
+  background: inherit; /* 필요시 주석 해제 */
+}
+
+/* 다크 모드 대비용(사이트가 다크 모드 쓰면): 전역 변수 변경만으로 톤 동기화 */
+@media (prefers-color-scheme: dark) {
+  :root { --page-bg: #0e0f12; }
+  .cart-side { border-color: rgba(255,255,255,.08); box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+}
