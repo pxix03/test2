@@ -478,6 +478,13 @@ try {
 
 
 try { attachHeaderHeightWatchers(); } catch(_) {}
+
+
+try {
+  const r = (typeof routeOnly === 'function') ? routeOnly() : (location.hash||'').replace(/^#\/?/, '').split('?')[0] || 'home';
+  if (r === 'store') { ensureStoreCartSidebar(); renderStoreCartSidebar(); }
+} catch(_) {}
+
 }
 onRouteChange(() => { render(); });
 
@@ -545,7 +552,17 @@ const isInteractive = el => !!el.closest('a, button, input, select, textarea, la
    전역 클릭/폼 위임
 ======================================== */
 
-// [ADD] Home: suppress section area clicks; only cards navigate
+// [ADD] document.addEventListener('click', (e)=>{
+document.addEventListener('click', (e)=>{
+
+// Guard: suppress clicks right after horizontal drag
+try {
+  const row = e.target.closest('.row-scroll');
+  if (row && (window.__rowScrollDragging || (window.__rowScrollJustDragged && Date.now() - window.__rowScrollJustDragged < 300))) {
+    e.preventDefault(); e.stopPropagation(); return;
+  }
+} catch(_) {}
+//Home: suppress section area clicks; only cards navigate
 try {
   const isHome = (typeof routeOnly === 'function') ? (routeOnly() === 'home') : ((location.hash||'') === '' || (location.hash||'') === '#/home' || (location.hash||'') === '#');
   if (isHome) {
@@ -599,32 +616,44 @@ try {
     if (to){ navigate(to); return; }
   }
 
-  // 4) 장바구니/구매/로그아웃
-  const el = e.target.closest('[data-action]'); if (!el) return;
-  const action = el.getAttribute('data-action'); const id = el.getAttribute('data-id');
+  
+  
+// 4) 장바구니/구매/로그아웃
+const el = e.target.closest('[data-action]'); if (!el) return;
+const action = el.getAttribute('data-action'); const id = el.getAttribute('data-id');
 
-  if (action === 'logout') {
-    state.session = null; saveState(); render(); return;
-  }
+if (action === 'logout') {
+  state.session = null; saveState(); render(); return;
+}
 
-  if (action === 'add-to-cart' || action === 'buy-now') {
-    if (!state.session){ alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
-    const container = el.closest('[data-id], [data-title], [data-price], article, .card, .product');
-    let pid = id || container?.getAttribute('data-id') || '';
-    let title = el.getAttribute('data-title') || container?.getAttribute('data-title') || container?.querySelector('h3,h4,.title')?.textContent?.trim() || '상품';
-    let price = parseInt(el.getAttribute('data-price') || container?.getAttribute('data-price') || (container?.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'' ) || '0', 10) || 0;
-    let img = container?.getAttribute('data-img') || container?.querySelector('img')?.getAttribute('src') || '';
-    if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
-    const ex = state.cart.find(x=>x.id===pid);
-    if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
-    saveState(); render(); if (action==='buy-now') navigate('cart'); return;
-  }
+if (action === 'add-to-cart' || action === 'buy-now') {
+  if (!state.session){ alert('로그인 후 이용 가능합니다.'); navigate('login'); return; }
+  const container = el.closest('[data-id], [data-title], [data-price], article, .card, .product');
+  let pid = id || container?.getAttribute('data-id') || '';
+  let title = el.getAttribute('data-title') || container?.getAttribute('data-title') || container?.querySelector('h3,h4,.title')?.textContent?.trim() || '상품';
+  let price = parseInt(el.getAttribute('data-price') || container?.getAttribute('data-price') || (container?.querySelector('.price')?.textContent || '').replace(/[^0-9]/g,'' ) || '0', 10) || 0;
+  let img = container?.getAttribute('data-img') || container?.querySelector('img')?.getAttribute('src') || '';
+  if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
+  const ex = state.cart.find(x=>x.id===pid);
+  if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
+  saveState(); render();
+  try {
+    if (typeof routeOnly==='function' && routeOnly()==='store') {
+      ensureStoreCartSidebar();
+      renderStoreCartSidebar();
+      document.getElementById('storeCartSide')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    if (action==='buy-now') { navigate('cart'); return; }
+  } catch (err) { console.error(err); }
+  return;
+}
 
-  if (action === 'qty-inc'){ const it=state.cart.find(x=>x.id===id); if (it) it.qty++; saveState(); render(); return; }
-  if (action === 'qty-dec'){ const it=state.cart.find(x=>x.id===id); if (it && it.qty>1) it.qty--; saveState(); render(); return; }
-  if (action === 'remove'){ state.cart=state.cart.filter(x=>x.id!==id); saveState(); render(); return; }
-  if (action === 'checkout'){ alert('결제가 완료되었습니다. (데모)'); state.cart=[]; saveState(); render(); return; }
-
+if (action === 'qty-inc'){ const it=state.cart.find(x=>x.id===id); if (it) it.qty++; saveState(); render(); return; }
+if (action === 'qty-dec'){ const it=state.cart.find(x=>x.id===id); if (it && it.qty>1) it.qty--; saveState(); render(); return; }
+if (action === 'remove'){ state.cart=state.cart.filter(x=>x.id!==id); saveState(); render(); return; }
+if (action === 'checkout'){ alert('결제가 완료되었습니다. (데모)'); state.cart=[]; saveState(); render(); return; }
+});
 
 document.addEventListener('submit', async (e)=>{
   const form=e.target;
