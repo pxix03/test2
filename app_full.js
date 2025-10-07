@@ -465,30 +465,8 @@ async function render() {
     });
   }
 
-
-// [PATCH] Store-only cart sidebar + UX toggles
-try {
-  const r = (typeof routeOnly === 'function') ? routeOnly() : (location.hash||'').replace(/^#\/?/, '').split('?')[0] || 'home';
-  // Toggle store lock banner & disable buttons when logged out
-  if (r === 'store' || document.getElementById('storeLocked')) {
-    const locked = document.getElementById('storeLocked');
-    const isLoggedIn = !!(state && state.session);
-    if (locked) locked.hidden = isLoggedIn;
-    document.querySelectorAll('.store-card button[data-action="add-to-cart"]').forEach(b => {
-      b.disabled = !isLoggedIn;
-      b.setAttribute('aria-disabled', String(!isLoggedIn));
-      b.title = isLoggedIn ? '' : '로그인 후 이용 가능';
-    });
-  }
-  if (r === 'store') {
-    ensureStoreCartSidebar();
-    renderStoreCartSidebar();
-    if (window.__openStoreCartAfterNav) {
-      try { document.getElementById('storeCartSide')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(_){}
-      window.__openStoreCartAfterNav = false;
-    }
-  }
-} catch(_){}
+// keep header height var fresh
+try { updateHeaderHeightVar(); } catch(_) {}
 
 }
 onRouteChange(() => { render(); });
@@ -514,23 +492,6 @@ function patchLegacyLinks() {
    원본 버튼/링크 → SPA 표준 속성 부여
 ======================================== */
 function enhanceActions() {
-  // [PATCH] store-card 내부 버튼을 add-to-cart로 태깅하고, 카드 dataset을 버튼으로 복사
-  try {
-    document.querySelectorAll('.store-card').forEach(card => {
-      const btns = card.querySelectorAll('button');
-      btns.forEach(btn => {
-        if (!btn.hasAttribute('data-action')) {
-          btn.setAttribute('data-action', 'add-to-cart');
-        }
-        const { id, title, price, img } = card.dataset || {};
-        if (id)    btn.setAttribute('data-id', id);
-        if (title) btn.setAttribute('data-title', title);
-        if (price) btn.setAttribute('data-price', price);
-        if (img)   btn.setAttribute('data-img', img);
-      });
-    });
-  } catch(e) {}
-
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el=>el.setAttribute('data-link','store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el=>el.setAttribute('data-link','cart'));
   document.querySelectorAll('a[href$="login.html"], [data-nav="login"]').forEach(el=>el.setAttribute('data-link','login'));
@@ -572,13 +533,6 @@ document.addEventListener('click', (e) => {
     e.preventDefault();
     const to = link.getAttribute('data-link');
     if (to === 'cart' && !state.session) { alert('장바구니는 로그인 후 이용 가능합니다.'); navigate('login'); return; }
-    
-    if (to === 'cart') {
-      if (!state.session) { alert('장바구니는 로그인 후 이용 가능합니다.'); navigate('login'); return; }
-      navigate('store'); 
-      window.__openStoreCartAfterNav = true;
-      return;
-    }
     navigate(to); return;
   }
 
@@ -617,12 +571,7 @@ document.addEventListener('click', (e) => {
     if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
     const ex = state.cart.find(x=>x.id===pid);
     if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
-    saveState(); render(); 
-    if (routeOnly && routeOnly() === 'store') { 
-      try { document.getElementById('storeCartSide')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch(_){}
-      return; 
-    }
-    if (action==='buy-now') navigate('cart'); return;
+    saveState(); render(); if (action==='buy-now') navigate('cart'); return;
   }
 
   if (action === 'qty-inc'){ const it=state.cart.find(x=>x.id===id); if (it) it.qty++; saveState(); render(); return; }
@@ -683,94 +632,11 @@ function initRowScrolls() {
 
 
 
-/* ========================================
-   Store Cart Sidebar (right column on store route only)
-======================================== */
-function ensureStoreCartSidebar(){
-  if (routeOnly() !== 'store') return;
-  const wrap = document.getElementById('storeWrapper');
-  if (!wrap) return;
-  // If already built, skip structure rebuild
-  if (document.getElementById('storeTwoCol')) { renderStoreCartSidebar(); return; }
-
-  // Build two-column container
-  const container = document.createElement('div');
-  container.id = 'storeTwoCol';
-  container.className = 'store-two-col';
-
-  const left = document.createElement('div');
-  left.className = 'store-col products';
-  left.id = 'storeProducts';
-
-  const right = document.createElement('aside');
-  right.className = 'store-col cart-side';
-  right.id = 'storeCartSide';
-  right.innerHTML = `
-    <div class="cart-side__head">
-      <h3>장바구니</h3>
-    </div>
-    <div class="cart-side__body">
-      <div class="cart-empty" id="scEmpty" hidden>장바구니가 비어 있습니다.</div>
-      <div id="scList"></div>
-    </div>
-    <div class="cart-side__foot">
-      <div class="summary-row"><span>총 수량</span><b id="scItemCount">0</b></div>
-      <div class="summary-row total"><span>결제 금액</span><strong id="scTotalPrice">₩0</strong></div>
-      <button class="button primary" id="scCheckoutBtn" data-action="checkout" disabled>결제하기</button>
-    </div>
-  `;
-
-  // Move all existing children of wrap into left
-  const fragments = [];
-  while (wrap.firstChild) { fragments.push(wrap.firstChild); wrap.removeChild(wrap.firstChild); }
-  fragments.forEach(node => left.appendChild(node));
-
-  container.appendChild(left);
-  container.appendChild(right);
-  wrap.appendChild(container);
-
-  renderStoreCartSidebar();
-}
-
-function renderStoreCartSidebar(){
-  if (routeOnly() !== 'store') return;
-  const listEl = document.getElementById('scList');
-  const emptyEl = document.getElementById('scEmpty');
-  const cntEl = document.getElementById('scItemCount');
-  const totEl = document.getElementById('scTotalPrice');
-  const btnEl = document.getElementById('scCheckoutBtn');
-  if (!listEl || !cntEl || !totEl) return;
-
-  const cart = Array.isArray(state.cart) ? state.cart : [];
-  if (!cart.length){
-    listEl.innerHTML = '';
-    if (emptyEl) emptyEl.hidden = false;
-    cntEl.textContent = '0';
-    totEl.textContent = '₩0';
-    if (btnEl) btnEl.disabled = true;
-    return;
-  }
-  if (emptyEl) emptyEl.hidden = true;
-
-  listEl.innerHTML = cart.map(it => `
-    <div class="sc-item" data-id="${it.id}">
-      <img class="thumb" src="${it.img||''}" alt=""/>
-      <div class="meta">
-        <div class="title">${it.title||'상품'}</div>
-        <div class="price">₩${Number(it.price||0).toLocaleString('ko-KR')}</div>
-        <div class="qty">
-          <button class="qty-btn" data-action="qty-dec" data-id="${it.id}" aria-label="수량 감소">−</button>
-          <span class="count" aria-live="polite">${it.qty||1}</span>
-          <button class="qty-btn" data-action="qty-inc" data-id="${it.id}" aria-label="수량 증가">＋</button>
-          <button class="remove" data-action="remove" data-id="${it.id}" aria-label="삭제">삭제</button>
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  const totalQty = cart.reduce((s,x)=>s+(x.qty||1),0);
-  const totalPrice = cart.reduce((s,x)=>s+(x.price||0)*(x.qty||1),0);
-  cntEl.textContent = String(totalQty);
-  totEl.textContent = '₩' + totalPrice.toLocaleString('ko-KR');
-  if (btnEl) btnEl.disabled = !cart.length;
+// [PATCH] update header height CSS variable to avoid overlap with sticky cart-side
+function updateHeaderHeightVar(){
+  try {
+    const hd = document.querySelector('header');
+    const h = hd ? Math.max(56, hd.getBoundingClientRect().height) : 72;
+    document.documentElement.style.setProperty('--header-h', h + 'px');
+  } catch(_){}
 }
