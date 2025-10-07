@@ -497,24 +497,44 @@ header.site-header nav.site-nav a[aria-current="page"] {
 }
 
 
-/* === Cart Inline Panel === */
-.cart-panel{
-  background: rgba(11,18,36,.92);
-  border-bottom: 1px solid rgba(255,255,255,.08);
-  box-shadow: 0 4px 24px rgba(0,0,0,.18);
-  position: relative;
-  z-index: 5;
-  padding: 10px 0 24px;
+/* === Store Two-Column Layout with Cart Sidebar === */
+.store-two-col{
+  display: grid;
+  grid-template-columns: 1fr min(400px, 32%);
+  gap: 24px;
+  align-items: start;
 }
-.cart-panel[hidden]{ display:none !important; }
-.cart-panel__head{
-  display:flex; align-items:center; justify-content:space-between;
-  padding: 8px 12px;
+@media (max-width: 1024px){
+  .store-two-col{ grid-template-columns: 1fr; }
+  .cart-side{ position: static; }
 }
-.cart-panel__head h2{ margin:0; font-size:1.2rem; }
-.cart-panel__close{
-  background:none; border:1px solid rgba(255,255,255,.2);
-  border-radius: 10px; width:32px; height:32px; cursor:pointer;
-  color: var(--text-primary);
+
+.cart-side{
+  position: sticky;
+  top: 84px; /* header height approx */
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.06);
+  overflow: hidden;
 }
-.cart-panel__body{ padding-top: 6px; }
+.cart-side__head{ padding: 14px 16px; border-bottom: 1px solid #eee; background: #fafafa; }
+.cart-side__head h3{ margin: 0; font-size: 18px; }
+
+.cart-side__body{ max-height: 48vh; overflow:auto; padding: 8px 12px; }
+.sc-item{ display:flex; gap: 10px; padding: 10px 4px; border-bottom: 1px solid #f3f3f3; }
+.sc-item .thumb{ width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background:#f6f6f6; }
+.sc-item .meta{ flex:1; display:flex; flex-direction:column; gap:4px; }
+.sc-item .title{ font-weight:600; }
+.sc-item .price{ color:#333; }
+.sc-item .qty{ display:flex; align-items:center; gap:8px; }
+.sc-item .qty .qty-btn{ width:28px; height:28px; border:1px solid #ddd; background:#fafafa; border-radius:6px; cursor:pointer; }
+.sc-item .qty .remove{ margin-left:auto; background:none; border:none; color:#999; cursor:pointer; }
+
+.cart-side__foot{ padding: 12px 16px; border-top: 1px solid #eee; display:flex; flex-direction:column; gap:8px; }
+.cart-side__foot .summary-row{ display:flex; align-items:center; justify-content:space-between; }
+.cart-side__foot .summary-row.total strong{ font-size: 18px; }
+
+/* minor UX from earlier patch */
+.row-scroll.dragging { cursor: grabbing; user-select: none; -webkit-user-select: none; -ms-user-select: none; }
+.store-card button[disabled]{ opacity: .6; cursor: not-allowed; }
