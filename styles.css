@@ -181,7 +181,7 @@ img { max-width: 100%; display: block; border-radius: var(--radius-md); object-f
 
 /* 카드 그리드(세로형) 기본 */
 .card-grid{
-  display: grid; gap:  22px;
+  display: grid; gap: 28px;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 .player-card{
@@ -412,7 +412,7 @@ mark{ background: rgba(255,235,59,.35); padding: 0 .15em; border-radius: 4px; }
 /* 스크롤 컨테이너 */
 .row-scroll{
   flex: 1 1 auto;
-  display: flex; gap:  14px;
+  display: flex; gap: 18px;
   overflow-x: auto;
   padding: 10px 16px;
   scroll-snap-type: x mandatory;
