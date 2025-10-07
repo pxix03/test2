@@ -466,25 +466,28 @@ async function render() {
   }
 
 
-// [PATCH] 스토어 잠금 안내 토글 + 비로그인 시 장바구니 버튼 비활성
-try {
-  const getRouteOnly = () => {
-    if (typeof routeOnly === 'function') return routeOnly();
-    const raw = (location.hash || '').replace(/^#/, '');
-    return (raw.split('?')[0] || 'index');
-  };
-  const isStore = getRouteOnly() === 'store';
-  if (isStore || document.getElementById('storeLocked')) {
-    const locked = document.getElementById('storeLocked');
-    const isLoggedIn = !!(typeof state !== 'undefined' && state && state.session);
-    if (locked) locked.hidden = isLoggedIn;
-    document.querySelectorAll('.store-card button[data-action="add-to-cart"]').forEach(b => {
-      b.disabled = !isLoggedIn;
-      b.setAttribute('aria-disabled', String(!isLoggedIn));
-      b.title = isLoggedIn ? '' : '로그인 후 이용 가능';
-    });
-  }
-} catch (_) {}
+  // [PATCH] 스토어 잠금 안내 토글 + 비로그인 시 장바구니 버튼 비활성
+  try {
+    const getRouteOnly = () => {
+      if (typeof routeOnly === 'function') return routeOnly();
+      const raw = (location.hash || '').replace(/^#/, '');
+      return (raw.split('?')[0] || 'index');
+    };
+    const isStore = getRouteOnly() === 'store';
+    if (isStore || document.getElementById('storeLocked')) {
+      const locked = document.getElementById('storeLocked');
+      const isLoggedIn = !!(state && state.session);
+      if (locked) locked.hidden = isLoggedIn;
+      document.querySelectorAll('.store-card button[data-action="add-to-cart"]').forEach(b => {
+        b.disabled = !isLoggedIn;
+        b.setAttribute('aria-disabled', String(!isLoggedIn));
+        b.title = isLoggedIn ? '' : '로그인 후 이용 가능';
+      });
+    }
+  } catch (_) {}
+  // [CartDrawer] keep drawer DOM in sync
+  try { ensureCartDrawer(); renderCartDrawer(); } catch(_) {}
+
 }
 onRouteChange(() => { render(); });
 
@@ -510,22 +513,22 @@ function patchLegacyLinks() {
 ======================================== */
 function enhanceActions() {
 
-// [PATCH] store-card 내부 버튼을 add-to-cart로 태깅하고, 카드 dataset 속성을 버튼으로 복사
-try {
-  document.querySelectorAll('.store-card').forEach(card => {
-    const btns = card.querySelectorAll('button');
-    btns.forEach(btn => {
-      if (!btn.hasAttribute('data-action')) {
-        btn.setAttribute('data-action', 'add-to-cart');
-      }
-      const { id, title, price, img } = card.dataset || {};
-      if (id)    btn.setAttribute('data-id', id);
-      if (title) btn.setAttribute('data-title', title);
-      if (price) btn.setAttribute('data-price', price);
-      if (img)   btn.setAttribute('data-img', img);
+  // [PATCH] store-card 내부 버튼을 add-to-cart로 태깅하고, 카드 dataset 속성을 버튼으로 복사
+  try {
+    document.querySelectorAll('.store-card').forEach(card => {
+      const btns = card.querySelectorAll('button');
+      btns.forEach(btn => {
+        if (!btn.hasAttribute('data-action')) {
+          btn.setAttribute('data-action', 'add-to-cart');
+        }
+        const { id, title, price, img } = card.dataset || {};
+        if (id)    btn.setAttribute('data-id', id);
+        if (title) btn.setAttribute('data-title', title);
+        if (price) btn.setAttribute('data-price', price);
+        if (img)   btn.setAttribute('data-img', img);
+      });
     });
-  });
-} catch (e) { /* noop */ }
+  } catch (e) {}
 
   document.querySelectorAll('a[href$="store.html"], [data-nav="store"]').forEach(el=>el.setAttribute('data-link','store'));
   document.querySelectorAll('a[href$="cart.html"], [data-nav="cart"]').forEach(el=>el.setAttribute('data-link','cart'));
@@ -567,7 +570,11 @@ document.addEventListener('click', (e) => {
   if (link) {
     e.preventDefault();
     const to = link.getAttribute('data-link');
-    if (to === 'cart' && !state.session) { alert('장바구니는 로그인 후 이용 가능합니다.'); navigate('login'); return; }
+    if (to === 'cart') { 
+      if (!state.session) { alert('장바구니는 로그인 후 이용 가능합니다.'); navigate('login'); return; }
+      openCartDrawer(); 
+      return; 
+    }
     navigate(to); return;
   }
 
@@ -591,6 +598,8 @@ document.addEventListener('click', (e) => {
   // 4) 장바구니/구매/로그아웃
   const el = e.target.closest('[data-action]'); if (!el) return;
   const action = el.getAttribute('data-action'); const id = el.getAttribute('data-id');
+  if (action === 'open-cart'){ e.preventDefault(); openCartDrawer(); return; }
+  if (action === 'close-cart'){ e.preventDefault(); closeCartDrawer(); return; }
 
   if (action === 'logout') {
     state.session = null; saveState(); render(); return;
@@ -606,7 +615,7 @@ document.addEventListener('click', (e) => {
     if (!pid) pid = title.toLowerCase().replace(/[^a-z0-9\-]+/g,'-');
     const ex = state.cart.find(x=>x.id===pid);
     if (ex) ex.qty++; else state.cart.push({ id: pid, title, price, img, qty: 1 });
-    saveState(); render(); if (action==='buy-now') navigate('cart'); return;
+    saveState(); render(); openCartDrawer(); return;
   }
 
   if (action === 'qty-inc'){ const it=state.cart.find(x=>x.id===id); if (it) it.qty++; saveState(); render(); return; }
@@ -665,3 +674,89 @@ function initRowScrolls() {
 
 
 
+
+
+/* ========================================
+   Cart Drawer (overlay)
+======================================== */
+function ensureCartDrawer(){
+  if (document.getElementById('cartDrawer')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div id="cartOverlay" class="cart-overlay" hidden></div>
+    <aside id="cartDrawer" class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cartDrawerTitle" hidden>
+      <header class="cart-drawer__head">
+        <h2 id="cartDrawerTitle">장바구니</h2>
+        <button class="cart-drawer__close" data-action="close-cart" aria-label="닫기">×</button>
+      </header>
+      <div id="cartDrawerBody" class="cart-drawer__body"></div>
+      <footer class="cart-drawer__foot">
+        <div class="cart-drawer__summary">
+          <span>총 수량 <b id="cdItemCount">0</b></span>
+          <strong id="cdTotalPrice">₩0</strong>
+        </div>
+        <button class="button primary" data-action="checkout" id="cdCheckoutBtn" disabled>결제하기</button>
+      </footer>
+    </aside>
+  `;
+  document.body.appendChild(wrap);
+  document.getElementById('cartOverlay').addEventListener('click', closeCartDrawer);
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape' && !document.getElementById('cartDrawer').hidden) closeCartDrawer();
+  });
+}
+
+function renderCartDrawer(){
+  ensureCartDrawer();
+  const body = document.getElementById('cartDrawerBody');
+  if (!body) return;
+  if (!Array.isArray(state.cart)) state.cart = [];
+  if (!state.cart.length){
+    body.innerHTML = `<div class="cart-empty">장바구니가 비어 있습니다.</div>`;
+    document.getElementById('cdItemCount').textContent = '0';
+    document.getElementById('cdTotalPrice').textContent = '₩0';
+    const btn = document.getElementById('cdCheckoutBtn'); if (btn) btn.disabled = true;
+    return;
+  }
+  const itemHtml = state.cart.map(it=>`
+    <div class="cd-item" data-id="${it.id}">
+      <img class="cd-thumb" src="${it.img||''}" alt="" />
+      <div class="cd-info">
+        <div class="cd-title">${it.title||'상품'}</div>
+        <div class="cd-price">₩${(it.price||0).toLocaleString('ko-KR')}</div>
+        <div class="cd-qty">
+          <button class="qty" data-action="qty-dec" data-id="${it.id}" aria-label="수량 감소">−</button>
+          <span class="count" aria-live="polite">${it.qty||1}</span>
+          <button class="qty" data-action="qty-inc" data-id="${it.id}" aria-label="수량 증가">＋</button>
+          <button class="remove" data-action="remove" data-id="${it.id}" aria-label="삭제">삭제</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  body.innerHTML = itemHtml;
+  const totalQty = state.cart.reduce((s,x)=>s+(x.qty||1),0);
+  const totalPrice = state.cart.reduce((s,x)=>s+(x.price||0)*(x.qty||1),0);
+  document.getElementById('cdItemCount').textContent = String(totalQty);
+  document.getElementById('cdTotalPrice').textContent = '₩' + totalPrice.toLocaleString('ko-KR');
+  const btn = document.getElementById('cdCheckoutBtn'); if (btn) btn.disabled = !state.cart.length;
+}
+
+function openCartDrawer(){
+  ensureCartDrawer();
+  renderCartDrawer();
+  const ov = document.getElementById('cartOverlay');
+  const dr = document.getElementById('cartDrawer');
+  if (!ov || !dr) return;
+  ov.hidden = false; dr.hidden = false;
+  document.body.classList.add('no-scroll');
+  // focus management
+  const closeBtn = dr.querySelector('[data-action="close-cart"]'); if (closeBtn) closeBtn.focus();
+}
+
+function closeCartDrawer(){
+  const ov = document.getElementById('cartOverlay');
+  const dr = document.getElementById('cartDrawer');
+  if (!ov || !dr) return;
+  ov.hidden = true; dr.hidden = true;
+  document.body.classList.remove('no-scroll');
+}
